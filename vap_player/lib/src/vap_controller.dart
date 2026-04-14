@@ -3,8 +3,12 @@ import 'dart:async';
 import 'package:vap_player_platform_interface/vap_player_platform_interface.dart';
 
 class VapController {
-  VapController({this.autoPlay = false, VapPlayerPlatform? platform})
-    : _platform = platform ?? VapPlayerPlatform.instance {
+  VapController({
+    this.autoPlay = false,
+    bool looping = false,
+    VapPlayerPlatform? platform,
+  }) : _platform = platform ?? VapPlayerPlatform.instance,
+       _looping = looping {
     _playbackSubscription = _platform.playbackEvents.listen((
       VapPlaybackEvent event,
     ) {
@@ -23,6 +27,8 @@ class VapController {
 
   final VapPlayerPlatform _platform;
   final bool autoPlay;
+  bool _looping;
+
   final StreamController<VapPlaybackEvent> _playbackEventsController =
       StreamController<VapPlaybackEvent>.broadcast();
   final StreamController<VapResourceClickEvent> _clickEventsController =
@@ -45,6 +51,7 @@ class VapController {
   bool get isAttached => _viewId != null;
 
   int? get viewId => _viewId;
+  bool get looping => _looping;
 
   void attach(int viewId) {
     _assertNotDisposed();
@@ -85,11 +92,16 @@ class VapController {
     }
   }
 
+  void setLooping(bool looping) {
+    _assertNotDisposed();
+    _looping = looping;
+  }
+
   Future<void> play({
     required VapSourceType sourceType,
     required String source,
     String? assetPackage,
-    int repeatCount = 0,
+    int? repeatCount,
     bool mute = false,
     VapContentMode contentMode = VapContentMode.scaleToFill,
     int? fps,
@@ -97,11 +109,12 @@ class VapController {
     Map<String, String> tagValues = const <String, String>{},
   }) {
     _assertNotDisposed();
+    final int effectiveRepeatCount = repeatCount ?? (_looping ? -1 : 0);
     final _PlayParams params = _PlayParams(
       sourceType: sourceType,
       source: source,
       assetPackage: assetPackage,
-      repeatCount: repeatCount,
+      repeatCount: effectiveRepeatCount,
       mute: mute,
       contentMode: contentMode,
       fps: fps,
@@ -122,7 +135,7 @@ class VapController {
   Future<void> playAsset(
     String assetPath, {
     String? assetPackage,
-    int repeatCount = 0,
+    int? repeatCount,
     bool mute = false,
     VapContentMode contentMode = VapContentMode.scaleToFill,
     int? fps,
@@ -144,7 +157,7 @@ class VapController {
 
   Future<void> playFile(
     String filePath, {
-    int repeatCount = 0,
+    int? repeatCount,
     bool mute = false,
     VapContentMode contentMode = VapContentMode.scaleToFill,
     int? fps,
@@ -165,7 +178,7 @@ class VapController {
 
   Future<void> playNetwork(
     String url, {
-    int repeatCount = 0,
+    int? repeatCount,
     bool mute = false,
     VapContentMode contentMode = VapContentMode.scaleToFill,
     int? fps,

@@ -47,6 +47,63 @@ void main() {
     await controller.dispose();
   });
 
+  test('controller loop=true maps omitted repeatCount to -1', () async {
+    final controller = VapController(looping: true);
+    controller.attach(45);
+
+    await controller.playFile('/tmp/loop.mp4');
+
+    final request = fakePlatform.lastPlayRequest;
+    expect(request, isNotNull);
+    expect(request!.repeatCount, -1);
+
+    await controller.dispose();
+  });
+
+  test('controller loop=false maps omitted repeatCount to 0', () async {
+    final controller = VapController(looping: false);
+    controller.attach(46);
+
+    await controller.playFile('/tmp/no-loop.mp4');
+
+    final request = fakePlatform.lastPlayRequest;
+    expect(request, isNotNull);
+    expect(request!.repeatCount, 0);
+
+    await controller.dispose();
+  });
+
+  test('explicit repeatCount overrides controller loop option', () async {
+    final controller = VapController(looping: true);
+    controller.attach(47);
+
+    await controller.playAsset('assets/override.mp4', repeatCount: 2);
+
+    final request = fakePlatform.lastPlayRequest;
+    expect(request, isNotNull);
+    expect(request!.repeatCount, 2);
+
+    await controller.dispose();
+  });
+
+  test('setIsLooping updates default repeatCount for later plays', () async {
+    final controller = VapController(looping: false);
+    controller.attach(48);
+
+    await controller.playFile('/tmp/first.mp4');
+    expect(fakePlatform.lastPlayRequest!.repeatCount, 0);
+
+    controller.setLooping(true);
+    await controller.playFile('/tmp/second.mp4');
+    expect(fakePlatform.lastPlayRequest!.repeatCount, -1);
+
+    controller.setLooping(false);
+    await controller.playFile('/tmp/third.mp4');
+    expect(fakePlatform.lastPlayRequest!.repeatCount, 0);
+
+    await controller.dispose();
+  });
+
   test('controller playNetwork forwards network source request', () async {
     final controller = VapController();
     controller.attach(43);
