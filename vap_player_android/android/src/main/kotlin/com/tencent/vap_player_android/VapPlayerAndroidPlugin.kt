@@ -1,8 +1,10 @@
 package com.tencent.vap_player_android
 
+import android.content.Context
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 
 class VapPlayerAndroidPlugin : FlutterPlugin, VapHostApi {
+  private lateinit var applicationContext: Context
   private lateinit var flutterAssets: FlutterPlugin.FlutterAssets
   private lateinit var eventApi: VapEventApi
   private lateinit var resourceApi: VapResourceApi
@@ -10,6 +12,7 @@ class VapPlayerAndroidPlugin : FlutterPlugin, VapHostApi {
   private val platformViews = mutableMapOf<Long, VapPlayerPlatformView>()
 
   override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+    applicationContext = binding.applicationContext
     flutterAssets = binding.flutterAssets
     eventApi = VapEventApi(binding.binaryMessenger)
     resourceApi = VapResourceApi(binding.binaryMessenger)
@@ -59,6 +62,29 @@ class VapPlayerAndroidPlugin : FlutterPlugin, VapHostApi {
   override fun dispose(viewId: Long) {
     requireView(viewId).release()
     platformViews.remove(viewId)
+  }
+
+  override fun getNetworkCacheSizeBytes(callback: (Result<Long>) -> Unit) {
+    try {
+      callback(Result.success(VapNetworkCacheUtils.networkCacheSizeBytes(applicationContext.cacheDir)))
+    } catch (t: Throwable) {
+      callback(Result.failure(t))
+    }
+  }
+
+  override fun clearNetworkCache() {
+    VapNetworkCacheUtils.clearNetworkCache(applicationContext.cacheDir)
+  }
+
+  override fun pruneNetworkCacheToBytes(maxBytes: Long) {
+    if (maxBytes < 0L) {
+      throw FlutterError("invalid-args", "pruneNetworkCacheToBytes requires maxBytes >= 0", null)
+    }
+    VapNetworkCacheUtils.pruneNetworkCacheToBytes(
+      cacheRoot = applicationContext.cacheDir,
+      maxBytes = maxBytes,
+      protectedFile = null,
+    )
   }
 
   private fun requireView(viewId: Long): VapPlayerPlatformView {

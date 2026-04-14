@@ -10,4 +10,5 @@ export 'package:vap_player_platform_interface/vap_player_platform_interface.dart
         VapSourceType;
 
 export 'src/vap_controller.dart';
+export 'src/vap_network_cache.dart';
 export 'src/vap_view.dart';

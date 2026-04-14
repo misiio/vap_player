@@ -36,6 +36,12 @@ abstract class VapPlayerPlatform extends PlatformInterface {
   Future<void> setFrameEventsEnabled(int viewId, bool enabled);
 
   Future<void> dispose(int viewId);
+
+  Future<int> getNetworkCacheSizeBytes();
+
+  Future<void> clearNetworkCache();
+
+  Future<void> pruneNetworkCacheToBytes(int maxBytes);
 }
 
 class PigeonVapPlayerPlatform extends VapPlayerPlatform {
@@ -117,6 +123,21 @@ class PigeonVapPlayerPlatform extends VapPlayerPlatform {
   Future<void> dispose(int viewId) {
     _imageResolvers.remove(viewId);
     return _hostApi.dispose(viewId);
+  }
+
+  @override
+  Future<int> getNetworkCacheSizeBytes() {
+    return _hostApi.getNetworkCacheSizeBytes();
+  }
+
+  @override
+  Future<void> clearNetworkCache() {
+    return _hostApi.clearNetworkCache();
+  }
+
+  @override
+  Future<void> pruneNetworkCacheToBytes(int maxBytes) {
+    return _hostApi.pruneNetworkCacheToBytes(maxBytes);
   }
 
   void addPlaybackEvent(VapPlaybackEventMessage event) {

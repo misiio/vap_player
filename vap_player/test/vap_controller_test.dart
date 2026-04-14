@@ -321,6 +321,9 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   ({int viewId, bool mute})? lastSetMute;
   ({int viewId, VapContentMode mode})? lastSetContentMode;
   ({int viewId, bool enabled})? lastSetFrameEventsEnabled;
+  int networkCacheSizeBytes = 0;
+  int clearNetworkCacheCalls = 0;
+  int? lastPruneNetworkCacheToBytes;
 
   @override
   Stream<VapPlaybackEvent> get playbackEvents => _playbackController.stream;
@@ -369,6 +372,21 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   Future<void> dispose(int viewId) async {
     disposedViews.add(viewId);
     _resolvers.remove(viewId);
+  }
+
+  @override
+  Future<int> getNetworkCacheSizeBytes() async {
+    return networkCacheSizeBytes;
+  }
+
+  @override
+  Future<void> clearNetworkCache() async {
+    clearNetworkCacheCalls += 1;
+  }
+
+  @override
+  Future<void> pruneNetworkCacheToBytes(int maxBytes) async {
+    lastPruneNetworkCacheToBytes = maxBytes;
   }
 
   void emitPlayback(VapPlaybackEvent event) {

@@ -69,6 +69,25 @@ public final class VapPlayerIosPlugin: NSObject, FlutterPlugin, VapHostApi {
     removePlatformView(viewId: viewId)
   }
 
+  func getNetworkCacheSizeBytes(completion: @escaping (Result<Int64, Error>) -> Void) {
+    completion(.success(VapNetworkCacheUtils.networkCacheSizeBytes()))
+  }
+
+  func clearNetworkCache() throws {
+    try VapNetworkCacheUtils.clearNetworkCache()
+  }
+
+  func pruneNetworkCacheToBytes(maxBytes: Int64) throws {
+    if maxBytes < 0 {
+      throw PigeonError(
+        code: "invalid-args",
+        message: "pruneNetworkCacheToBytes requires maxBytes >= 0",
+        details: nil
+      )
+    }
+    try VapNetworkCacheUtils.pruneNetworkCacheToBytes(maxBytes: maxBytes, protectedFileURL: nil)
+  }
+
   private func requireView(viewId: Int64) throws -> VapPlayerPlatformView {
     guard let view = platformViews[viewId] else {
       throw PigeonError(code: "not-found", message: "No VapView found for viewId=\(viewId)", details: nil)
@@ -118,6 +137,7 @@ final class VapPlayerPlatformViewFactory: NSObject, FlutterPlatformViewFactory {
 
 final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDelegate {
   static let viewType = "vap_player/view"
+  private static let networkAutoEvictMaxBytes: Int64 = 100 * 1024 * 1024
 
   let viewId: Int64
 
@@ -406,6 +426,7 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
 
     let cacheURL = cacheFileURL(forNetworkURL: urlString)
     if hasCachedFile(at: cacheURL) {
+      VapNetworkCacheUtils.touch(fileURL: cacheURL)
       playLocalFile(path: cacheURL.path, repeatCount: repeatCount, requestToken: requestToken)
       return
     }
@@ -446,6 +467,11 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
         self.emitNetworkFailure(code: Int64(nsError.code), message: nsError.localizedDescription)
         return
       }
+      VapNetworkCacheUtils.touch(fileURL: cacheURL)
+      try? VapNetworkCacheUtils.pruneNetworkCacheToBytes(
+        maxBytes: Self.networkAutoEvictMaxBytes,
+        protectedFileURL: cacheURL
+      )
 
       guard self.isRequestTokenCurrent(requestToken) else { return }
       self.playLocalFile(path: cacheURL.path, repeatCount: repeatCount, requestToken: requestToken)
@@ -503,9 +529,7 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
   }
 
   private func cacheFileURL(forNetworkURL urlString: String) -> URL {
-    let cacheRoot = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
-      ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-    let cacheDirectory = cacheRoot.appendingPathComponent("vap_player/network", isDirectory: true)
+    let cacheDirectory = VapNetworkCacheUtils.cacheDirectoryURL()
     let fileName = "\(sha256Hex(urlString)).mp4"
     return cacheDirectory.appendingPathComponent(fileName)
   }
@@ -553,5 +577,119 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
     } else {
       DispatchQueue.main.sync(execute: block)
     }
+  }
+}
+
+private enum VapNetworkCacheUtils {
+  private static let cacheSubdirectory = "vap_player/network"
+
+  static func cacheDirectoryURL() -> URL {
+    let cacheRoot = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+      ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+    return cacheRoot.appendingPathComponent(cacheSubdirectory, isDirectory: true)
+  }
+
+  static func networkCacheSizeBytes() -> Int64 {
+    let directory = cacheDirectoryURL()
+    guard let fileURLs = try? FileManager.default.contentsOfDirectory(
+      at: directory,
+      includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+      options: [.skipsHiddenFiles]
+    ) else {
+      return 0
+    }
+
+    var totalSize: Int64 = 0
+    for fileURL in fileURLs {
+      guard let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+        values.isRegularFile == true
+      else {
+        continue
+      }
+      totalSize += Int64(values.fileSize ?? 0)
+    }
+    return totalSize
+  }
+
+  static func clearNetworkCache() throws {
+    let directory = cacheDirectoryURL()
+    guard FileManager.default.fileExists(atPath: directory.path) else {
+      return
+    }
+    let fileURLs = try FileManager.default.contentsOfDirectory(
+      at: directory,
+      includingPropertiesForKeys: nil,
+      options: [.skipsHiddenFiles]
+    )
+    for fileURL in fileURLs {
+      try FileManager.default.removeItem(at: fileURL)
+    }
+  }
+
+  static func pruneNetworkCacheToBytes(maxBytes: Int64, protectedFileURL: URL?) throws {
+    if maxBytes < 0 {
+      throw NSError(
+        domain: "vap_player_ios",
+        code: -1,
+        userInfo: [NSLocalizedDescriptionKey: "maxBytes must be >= 0"]
+      )
+    }
+
+    let directory = cacheDirectoryURL()
+    guard FileManager.default.fileExists(atPath: directory.path) else {
+      return
+    }
+
+    let urls = try FileManager.default.contentsOfDirectory(
+      at: directory,
+      includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey],
+      options: [.skipsHiddenFiles]
+    )
+
+    var entries: [(url: URL, size: Int64, modifiedAt: Date)] = []
+    for url in urls {
+      let values = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey])
+      guard values.isRegularFile == true else {
+        continue
+      }
+      entries.append((
+        url: url,
+        size: Int64(values.fileSize ?? 0),
+        modifiedAt: values.contentModificationDate ?? .distantPast
+      ))
+    }
+
+    var totalSize = entries.reduce(Int64(0)) { partial, entry in
+      partial + entry.size
+    }
+    if totalSize <= maxBytes {
+      return
+    }
+
+    let protectedPath = protectedFileURL?.resolvingSymlinksInPath().path
+    let sortedEntries = entries.sorted { lhs, rhs in
+      lhs.modifiedAt < rhs.modifiedAt
+    }
+
+    for entry in sortedEntries {
+      if totalSize <= maxBytes {
+        break
+      }
+      if let protectedPath, entry.url.resolvingSymlinksInPath().path == protectedPath {
+        continue
+      }
+      try FileManager.default.removeItem(at: entry.url)
+      totalSize -= entry.size
+    }
+  }
+
+  static func touch(fileURL: URL) {
+    guard FileManager.default.fileExists(atPath: fileURL.path) else {
+      return
+    }
+    try? FileManager.default.setAttributes(
+      [.modificationDate: Date()],
+      ofItemAtPath: fileURL.path
+    )
   }
 }

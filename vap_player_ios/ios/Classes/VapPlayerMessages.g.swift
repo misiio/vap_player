@@ -593,6 +593,7 @@ class VapPlayerMessagesPigeonCodec: FlutterStandardMessageCodec, @unchecked Send
   static let shared = VapPlayerMessagesPigeonCodec(readerWriter: VapPlayerMessagesPigeonCodecReaderWriter())
 }
 
+
 /// Generated protocol from Pigeon that represents a handler of messages from Flutter.
 protocol VapHostApi {
   func play(request: VapPlayRequestMessage) throws
@@ -601,6 +602,9 @@ protocol VapHostApi {
   func setContentMode(viewId: Int64, mode: VapContentModeMessage) throws
   func setFrameEventsEnabled(viewId: Int64, enabled: Bool) throws
   func dispose(viewId: Int64) throws
+  func getNetworkCacheSizeBytes(completion: @escaping (Result<Int64, Error>) -> Void)
+  func clearNetworkCache() throws
+  func pruneNetworkCacheToBytes(maxBytes: Int64) throws
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -701,6 +705,49 @@ class VapHostApiSetup {
       }
     } else {
       disposeChannel.setMessageHandler(nil)
+    }
+    let getNetworkCacheSizeBytesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.getNetworkCacheSizeBytes\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      getNetworkCacheSizeBytesChannel.setMessageHandler { _, reply in
+        api.getNetworkCacheSizeBytes { result in
+          switch result {
+          case .success(let res):
+            reply(wrapResult(res))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      getNetworkCacheSizeBytesChannel.setMessageHandler(nil)
+    }
+    let clearNetworkCacheChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.clearNetworkCache\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      clearNetworkCacheChannel.setMessageHandler { _, reply in
+        do {
+          try api.clearNetworkCache()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      clearNetworkCacheChannel.setMessageHandler(nil)
+    }
+    let pruneNetworkCacheToBytesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.pruneNetworkCacheToBytes\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      pruneNetworkCacheToBytesChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let maxBytesArg = args[0] as! Int64
+        do {
+          try api.pruneNetworkCacheToBytes(maxBytes: maxBytesArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      pruneNetworkCacheToBytesChannel.setMessageHandler(nil)
     }
   }
 }

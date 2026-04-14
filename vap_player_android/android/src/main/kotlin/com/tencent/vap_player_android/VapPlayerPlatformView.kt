@@ -37,6 +37,7 @@ class VapPlayerPlatformView(
     const val VIEW_TYPE: String = "vap_player/view"
     private const val TAG: String = "VapPlayerPlatformView"
     private const val NETWORK_ERROR_CODE: Long = -1L
+    private const val NETWORK_AUTO_EVICT_MAX_BYTES: Long = 100L * 1024L * 1024L
   }
 
   private val mainHandler = Handler(Looper.getMainLooper())
@@ -340,6 +341,7 @@ class VapPlayerPlatformView(
 
     val cacheFile = VapNetworkCacheUtils.cacheFileForUrl(context.cacheDir, source)
     if (cacheFile.isFile && cacheFile.length() > 0L) {
+      VapNetworkCacheUtils.touch(cacheFile)
       runOnMain {
         if (isRequestTokenCurrent(requestToken)) {
           animView.startPlay(cacheFile)
@@ -402,6 +404,16 @@ class VapPlayerPlatformView(
       if (!tempFile.renameTo(targetFile)) {
         tempFile.copyTo(targetFile, overwrite = true)
         tempFile.delete()
+      }
+      VapNetworkCacheUtils.touch(targetFile)
+      try {
+        VapNetworkCacheUtils.pruneNetworkCacheToBytes(
+          cacheRoot = context.cacheDir,
+          maxBytes = NETWORK_AUTO_EVICT_MAX_BYTES,
+          protectedFile = targetFile,
+        )
+      } catch (t: Throwable) {
+        Log.w(TAG, "Failed to prune network cache: ${t.message ?: t.javaClass.simpleName}")
       }
 
       if (!isRequestTokenCurrent(requestToken)) {
@@ -494,6 +506,76 @@ internal object VapNetworkCacheUtils {
   fun cacheFileForUrl(cacheRoot: File, url: String): File {
     val digest = MessageDigest.getInstance("SHA-256").digest(url.toByteArray(Charsets.UTF_8))
     val hex = digest.joinToString(separator = "") { byte -> "%02x".format(byte) }
-    return File(File(cacheRoot, NETWORK_CACHE_DIR), "$hex.mp4")
+    return File(cacheDirectory(cacheRoot), "$hex.mp4")
+  }
+
+  fun cacheDirectory(cacheRoot: File): File {
+    return File(cacheRoot, NETWORK_CACHE_DIR)
+  }
+
+  fun networkCacheSizeBytes(cacheRoot: File): Long {
+    val directory = cacheDirectory(cacheRoot)
+    val files = directory.listFiles() ?: return 0L
+    return files
+      .filter { it.isFile }
+      .sumOf { it.length() }
+  }
+
+  fun clearNetworkCache(cacheRoot: File) {
+    val directory = cacheDirectory(cacheRoot)
+    val files = directory.listFiles() ?: return
+    files.forEach { file ->
+      if (file.isDirectory) {
+        file.deleteRecursively()
+      } else {
+        file.delete()
+      }
+    }
+  }
+
+  fun pruneNetworkCacheToBytes(cacheRoot: File, maxBytes: Long, protectedFile: File?) {
+    require(maxBytes >= 0L) { "maxBytes must be >= 0" }
+
+    val directory = cacheDirectory(cacheRoot)
+    val files = directory.listFiles()
+      ?.filter { it.isFile }
+      ?.toMutableList()
+      ?: return
+
+    var totalSize = files.sumOf { it.length() }
+    if (totalSize <= maxBytes) {
+      return
+    }
+
+    val protectedCanonicalPath = protectedFile?.let(::canonicalOrAbsolutePath)
+    files.sortBy { it.lastModified() }
+
+    for (file in files) {
+      if (totalSize <= maxBytes) {
+        break
+      }
+      if (protectedCanonicalPath != null && canonicalOrAbsolutePath(file) == protectedCanonicalPath) {
+        continue
+      }
+      val fileLength = file.length()
+      if (file.delete()) {
+        totalSize -= fileLength
+      }
+    }
+  }
+
+  fun touch(file: File) {
+    if (!file.exists()) {
+      return
+    }
+    file.setLastModified(System.currentTimeMillis())
+  }
+
+  private fun canonicalOrAbsolutePath(file: File): String {
+    return try {
+      file.canonicalPath
+    } catch (_: IOException) {
+      file.absolutePath
+    }
   }
 }

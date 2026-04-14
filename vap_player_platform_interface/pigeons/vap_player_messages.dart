@@ -78,6 +78,13 @@ abstract class VapHostApi {
   void setFrameEventsEnabled(int viewId, bool enabled);
 
   void dispose(int viewId);
+
+  @async
+  int getNetworkCacheSizeBytes();
+
+  void clearNetworkCache();
+
+  void pruneNetworkCacheToBytes(int maxBytes);
 }
 
 @FlutterApi()

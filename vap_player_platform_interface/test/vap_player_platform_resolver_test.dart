@@ -127,6 +127,20 @@ void main() {
     expect(playback.type, VapPlaybackEventType.failed);
     expect(click.viewId, -1);
   });
+
+  test('network cache methods forward to host api', () async {
+    final fakeHost = _FakeHostApi();
+    final platform = PigeonVapPlayerPlatform(hostApi: fakeHost);
+
+    fakeHost.networkCacheSizeBytes = 1234;
+    final size = await platform.getNetworkCacheSizeBytes();
+    await platform.clearNetworkCache();
+    await platform.pruneNetworkCacheToBytes(512);
+
+    expect(size, 1234);
+    expect(fakeHost.clearNetworkCacheCalls, 1);
+    expect(fakeHost.lastPruneMaxBytes, 512);
+  });
 }
 
 class _FakeHostApi extends VapHostApi {
@@ -136,6 +150,9 @@ class _FakeHostApi extends VapHostApi {
   (int viewId, VapContentModeMessage mode)? lastContentMode;
   (int viewId, bool enabled)? lastFrameEventsEnabled;
   int? lastDisposeViewId;
+  int networkCacheSizeBytes = 0;
+  int clearNetworkCacheCalls = 0;
+  int? lastPruneMaxBytes;
 
   @override
   Future<void> play(VapPlayRequestMessage request) async {
@@ -165,5 +182,20 @@ class _FakeHostApi extends VapHostApi {
   @override
   Future<void> dispose(int viewId) async {
     lastDisposeViewId = viewId;
+  }
+
+  @override
+  Future<int> getNetworkCacheSizeBytes() async {
+    return networkCacheSizeBytes;
+  }
+
+  @override
+  Future<void> clearNetworkCache() async {
+    clearNetworkCacheCalls += 1;
+  }
+
+  @override
+  Future<void> pruneNetworkCacheToBytes(int maxBytes) async {
+    lastPruneMaxBytes = maxBytes;
   }
 }
