@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-enum VapSourceType { asset, file }
+enum VapSourceType { asset, file, network }
 
 enum VapContentMode { scaleToFill, aspectFit, aspectFill }
 

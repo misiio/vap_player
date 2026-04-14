@@ -191,6 +191,8 @@ class PigeonVapPlayerPlatform extends VapPlayerPlatform {
         return VapSourceTypeMessage.asset;
       case VapSourceType.file:
         return VapSourceTypeMessage.file;
+      case VapSourceType.network:
+        return VapSourceTypeMessage.network;
     }
   }
 

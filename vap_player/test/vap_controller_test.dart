@@ -47,6 +47,39 @@ void main() {
     await controller.dispose();
   });
 
+  test('controller playNetwork forwards network source request', () async {
+    final controller = VapController();
+    controller.attach(43);
+
+    await controller.playNetwork(
+      'https://cdn.example.com/anim/demo.mp4',
+      repeatCount: 1,
+      mute: true,
+    );
+
+    final request = fakePlatform.lastPlayRequest;
+    expect(request, isNotNull);
+    expect(request!.viewId, 43);
+    expect(request.sourceType, VapSourceType.network);
+    expect(request.source, 'https://cdn.example.com/anim/demo.mp4');
+    expect(request.repeatCount, 1);
+    expect(request.mute, true);
+
+    await controller.dispose();
+  });
+
+  test('controller playNetwork rejects invalid URL', () async {
+    final controller = VapController();
+    controller.attach(44);
+
+    expect(
+      () => controller.playNetwork('/local/path.mp4'),
+      throwsA(isA<StateError>()),
+    );
+
+    await controller.dispose();
+  });
+
   test('controller filters events by attached view id', () async {
     final controller = VapController();
     controller.attach(7);

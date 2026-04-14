@@ -197,7 +197,8 @@ class FlutterError (
 
 enum class VapSourceTypeMessage(val raw: Int) {
   ASSET(0),
-  FILE(1);
+  FILE(1),
+  NETWORK(2);
 
   companion object {
     fun ofRaw(raw: Int): VapSourceTypeMessage? {

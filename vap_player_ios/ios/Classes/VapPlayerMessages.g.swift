@@ -181,6 +181,7 @@ func deepHashVapPlayerMessages(value: Any?, hasher: inout Hasher) {
 enum VapSourceTypeMessage: Int {
   case asset = 0
   case file = 1
+  case network = 2
 }
 
 enum VapContentModeMessage: Int {

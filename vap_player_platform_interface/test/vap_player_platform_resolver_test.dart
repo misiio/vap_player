@@ -39,6 +39,24 @@ void main() {
     expect(message.tagValues?['[textUser]'], 'Alice');
   });
 
+  test('play maps network source type to pigeon enum', () async {
+    final fakeHost = _FakeHostApi();
+    final platform = PigeonVapPlayerPlatform(hostApi: fakeHost);
+
+    await platform.play(
+      const VapPlayRequest(
+        viewId: 9,
+        sourceType: VapSourceType.network,
+        source: 'https://cdn.example.com/vap/net.mp4',
+      ),
+    );
+
+    final message = fakeHost.lastPlayRequest;
+    expect(message, isNotNull);
+    expect(message!.sourceType, VapSourceTypeMessage.network);
+    expect(message.source, 'https://cdn.example.com/vap/net.mp4');
+  });
+
   test('resolveImage returns error when resolver is missing', () async {
     final platform = PigeonVapPlayerPlatform(hostApi: _FakeHostApi());
 

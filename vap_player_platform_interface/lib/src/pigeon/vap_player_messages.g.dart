@@ -110,6 +110,7 @@ int _deepHash(Object? value) {
 enum VapSourceTypeMessage {
   asset,
   file,
+  network,
 }
 
 enum VapContentModeMessage {

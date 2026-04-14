@@ -1,4 +1,5 @@
 import Flutter
+import CryptoKit
 import Foundation
 import QGVAPlayer
 import UIKit
@@ -128,6 +129,9 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
 
   private var tagValues: [String: String] = [:]
   private var frameEventsEnabled = false
+  private var playbackRequestToken: Int64 = 0
+  private var activeDownloadTask: URLSessionDownloadTask?
+  private let playbackRequestLock = NSLock()
   private var released = false
 
   init(
@@ -181,11 +185,15 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
 
     tagValues = sanitizeTagValues(request.tagValues)
     frameEventsEnabled = request.frameEventsEnabled ?? false
+    let requestToken = invalidatePendingNetworkPlayback()
 
-    let filePath: String
+    let repeatCount = Int(request.repeatCount ?? 0)
+    setContentMode(request.contentMode ?? .scaleToFill)
+    setMute(request.mute ?? false)
+
     switch request.sourceType ?? .file {
     case .file:
-      filePath = source
+      playLocalFile(path: source, repeatCount: repeatCount, requestToken: requestToken)
     case .asset:
       let key: String
       if let package = request.assetPackage, !package.isEmpty {
@@ -195,20 +203,17 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
       }
 
       if let path = Bundle.main.path(forResource: key, ofType: nil) {
-        filePath = path
+        playLocalFile(path: path, repeatCount: repeatCount, requestToken: requestToken)
       } else {
         throw PigeonError(code: "asset-not-found", message: "Unable to resolve asset path for \(key)", details: nil)
       }
-    }
-
-    runOnMain {
-      self.setContentMode(request.contentMode ?? .scaleToFill)
-      self.wrapView.setMute(request.mute ?? false)
-      self.wrapView.playHWDMP4(filePath, repeatCount: Int(request.repeatCount ?? 0), delegate: self)
+    case .network:
+      playNetworkSource(urlString: source, repeatCount: repeatCount, requestToken: requestToken)
     }
   }
 
   func stop() {
+    _ = invalidatePendingNetworkPlayback()
     runOnMain {
       self.wrapView.stopHWDMP4()
       self.emitPlayback(
@@ -248,6 +253,7 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
       return
     }
     released = true
+    _ = invalidatePendingNetworkPlayback()
     runOnMain {
       self.wrapView.stopHWDMP4()
       self.onDisposed(self.viewId)
@@ -379,6 +385,147 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
         completionBlock(nil, nsError, urlStr)
       }
     }
+  }
+
+  private func playLocalFile(path: String, repeatCount: Int, requestToken: Int64) {
+    runOnMain {
+      guard self.isRequestTokenCurrent(requestToken) else { return }
+      self.wrapView.playHWDMP4(path, repeatCount: repeatCount, delegate: self)
+    }
+  }
+
+  private func playNetworkSource(urlString: String, repeatCount: Int, requestToken: Int64) {
+    guard let url = URL(string: urlString) else {
+      emitNetworkFailure(message: "Invalid network URL: \(urlString)")
+      return
+    }
+    guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
+      emitNetworkFailure(message: "Unsupported URL scheme for network source: \(urlString)")
+      return
+    }
+
+    let cacheURL = cacheFileURL(forNetworkURL: urlString)
+    if hasCachedFile(at: cacheURL) {
+      playLocalFile(path: cacheURL.path, repeatCount: repeatCount, requestToken: requestToken)
+      return
+    }
+
+    startNetworkDownload(url: url, cacheURL: cacheURL, repeatCount: repeatCount, requestToken: requestToken)
+  }
+
+  private func startNetworkDownload(
+    url: URL,
+    cacheURL: URL,
+    repeatCount: Int,
+    requestToken: Int64
+  ) {
+    let task = URLSession.shared.downloadTask(with: url) { [weak self] tempURL, _, error in
+      guard let self else { return }
+      self.clearActiveDownloadTask(requestToken: requestToken)
+      guard self.isRequestTokenCurrent(requestToken) else { return }
+
+      if let error {
+        self.emitNetworkFailure(code: Int64((error as NSError).code), message: error.localizedDescription)
+        return
+      }
+
+      guard let tempURL else {
+        self.emitNetworkFailure(message: "Network download did not provide file data.")
+        return
+      }
+
+      do {
+        let parent = cacheURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        if FileManager.default.fileExists(atPath: cacheURL.path) {
+          try FileManager.default.removeItem(at: cacheURL)
+        }
+        try FileManager.default.moveItem(at: tempURL, to: cacheURL)
+      } catch {
+        let nsError = error as NSError
+        self.emitNetworkFailure(code: Int64(nsError.code), message: nsError.localizedDescription)
+        return
+      }
+
+      guard self.isRequestTokenCurrent(requestToken) else { return }
+      self.playLocalFile(path: cacheURL.path, repeatCount: repeatCount, requestToken: requestToken)
+    }
+
+    if setActiveDownloadTask(task: task, requestToken: requestToken) {
+      task.resume()
+    }
+  }
+
+  private func emitNetworkFailure(code: Int64 = -1, message: String) {
+    emitPlayback(
+      VapPlaybackEventMessage(
+        viewId: viewId,
+        type: .failed,
+        errorCode: code,
+        errorMessage: message
+      )
+    )
+  }
+
+  private func invalidatePendingNetworkPlayback() -> Int64 {
+    playbackRequestLock.lock()
+    defer { playbackRequestLock.unlock() }
+    playbackRequestToken += 1
+    activeDownloadTask?.cancel()
+    activeDownloadTask = nil
+    return playbackRequestToken
+  }
+
+  private func isRequestTokenCurrent(_ requestToken: Int64) -> Bool {
+    playbackRequestLock.lock()
+    defer { playbackRequestLock.unlock() }
+    return playbackRequestToken == requestToken
+  }
+
+  private func setActiveDownloadTask(task: URLSessionDownloadTask, requestToken: Int64) -> Bool {
+    playbackRequestLock.lock()
+    defer { playbackRequestLock.unlock() }
+    guard playbackRequestToken == requestToken else {
+      task.cancel()
+      return false
+    }
+    activeDownloadTask?.cancel()
+    activeDownloadTask = task
+    return true
+  }
+
+  private func clearActiveDownloadTask(requestToken: Int64) {
+    playbackRequestLock.lock()
+    defer { playbackRequestLock.unlock() }
+    if playbackRequestToken == requestToken {
+      activeDownloadTask = nil
+    }
+  }
+
+  private func cacheFileURL(forNetworkURL urlString: String) -> URL {
+    let cacheRoot = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+      ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+    let cacheDirectory = cacheRoot.appendingPathComponent("vap_player/network", isDirectory: true)
+    let fileName = "\(sha256Hex(urlString)).mp4"
+    return cacheDirectory.appendingPathComponent(fileName)
+  }
+
+  private func hasCachedFile(at url: URL) -> Bool {
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      return false
+    }
+    guard
+      let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+      let fileSize = attrs[.size] as? NSNumber
+    else {
+      return false
+    }
+    return fileSize.int64Value > 0
+  }
+
+  private func sha256Hex(_ input: String) -> String {
+    let digest = SHA256.hash(data: Data(input.utf8))
+    return digest.map { byte in String(format: "%02x", byte) }.joined()
   }
 
   private func emitPlayback(_ event: VapPlaybackEventMessage) {

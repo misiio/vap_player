@@ -16,6 +16,13 @@ import com.tencent.qgame.animplayer.util.ScaleType
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.platform.PlatformView
 import java.io.File
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URI
+import java.net.URL
+import java.security.MessageDigest
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 class VapPlayerPlatformView(
   private val context: Context,
@@ -29,12 +36,17 @@ class VapPlayerPlatformView(
   companion object {
     const val VIEW_TYPE: String = "vap_player/view"
     private const val TAG: String = "VapPlayerPlatformView"
+    private const val NETWORK_ERROR_CODE: Long = -1L
   }
 
   private val mainHandler = Handler(Looper.getMainLooper())
+  private val networkExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+  private val playbackRequestLock = Any()
   private val animView: AnimView = AnimView(context)
   private var frameEventsEnabled: Boolean = false
   private var tagValues: Map<String, String> = emptyMap()
+  private var playbackRequestToken: Long = 0L
+  private var activeDownloadConnection: HttpURLConnection? = null
   private var released: Boolean = false
 
   private val clickListener = object : OnResourceClickListener {
@@ -118,6 +130,7 @@ class VapPlayerPlatformView(
       return
     }
     released = true
+    invalidatePendingNetworkPlayback()
     runOnMain {
       animView.stopPlay()
       animView.setAnimListener(null)
@@ -125,6 +138,7 @@ class VapPlayerPlatformView(
       animView.setOnResourceClickListener(null)
       onViewDisposed(viewId)
     }
+    networkExecutor.shutdownNow()
   }
 
   fun play(request: VapPlayRequestMessage) {
@@ -135,6 +149,7 @@ class VapPlayerPlatformView(
 
     frameEventsEnabled = request.frameEventsEnabled ?: false
     tagValues = sanitizeTagValues(request.tagValues)
+    val requestToken = invalidatePendingNetworkPlayback()
 
     runOnMain {
       animView.setMute(request.mute ?: false)
@@ -150,9 +165,14 @@ class VapPlayerPlatformView(
       val repeatCount = request.repeatCount ?: 0L
       val loop = if (repeatCount < 0L) Int.MAX_VALUE else (repeatCount + 1L).toInt()
       animView.setLoop(loop)
+    }
 
-      when (request.sourceType ?: VapSourceTypeMessage.FILE) {
-        VapSourceTypeMessage.ASSET -> {
+    when (request.sourceType ?: VapSourceTypeMessage.FILE) {
+      VapSourceTypeMessage.ASSET -> {
+        runOnMain {
+          if (!isRequestTokenCurrent(requestToken)) {
+            return@runOnMain
+          }
           val assetsPath = if (request.assetPackage.isNullOrEmpty()) {
             flutterAssets.getAssetFilePathByName(source)
           } else {
@@ -160,15 +180,25 @@ class VapPlayerPlatformView(
           }
           animView.startPlay(context.assets, assetsPath)
         }
+      }
 
-        VapSourceTypeMessage.FILE -> {
+      VapSourceTypeMessage.FILE -> {
+        runOnMain {
+          if (!isRequestTokenCurrent(requestToken)) {
+            return@runOnMain
+          }
           animView.startPlay(File(source))
         }
+      }
+
+      VapSourceTypeMessage.NETWORK -> {
+        playNetworkSource(source, requestToken)
       }
     }
   }
 
   fun stop() {
+    invalidatePendingNetworkPlayback()
     runOnMain {
       animView.stopPlay()
       sendPlaybackEvent(
@@ -266,17 +296,21 @@ class VapPlayerPlatformView(
   }
 
   private fun sendPlaybackEvent(message: VapPlaybackEventMessage) {
-    eventApi.onPlaybackEvent(message) { result ->
-      result.exceptionOrNull()?.let {
-        Log.w(TAG, "onPlaybackEvent send failed: $it")
+    runOnMain {
+      eventApi.onPlaybackEvent(message) { result ->
+        result.exceptionOrNull()?.let {
+          Log.w(TAG, "onPlaybackEvent send failed: $it")
+        }
       }
     }
   }
 
   private fun sendResourceClick(message: VapResourceClickEventMessage) {
-    eventApi.onResourceClick(message) { result ->
-      result.exceptionOrNull()?.let {
-        Log.w(TAG, "onResourceClick send failed: $it")
+    runOnMain {
+      eventApi.onResourceClick(message) { result ->
+        result.exceptionOrNull()?.let {
+          Log.w(TAG, "onResourceClick send failed: $it")
+        }
       }
     }
   }
@@ -296,5 +330,170 @@ class VapPlayerPlatformView(
     } else {
       mainHandler.post(action)
     }
+  }
+
+  private fun playNetworkSource(source: String, requestToken: Long) {
+    if (!VapNetworkCacheUtils.isSupportedNetworkUrl(source)) {
+      emitNetworkFailure("Invalid network URL: $source")
+      return
+    }
+
+    val cacheFile = VapNetworkCacheUtils.cacheFileForUrl(context.cacheDir, source)
+    if (cacheFile.isFile && cacheFile.length() > 0L) {
+      runOnMain {
+        if (isRequestTokenCurrent(requestToken)) {
+          animView.startPlay(cacheFile)
+        }
+      }
+      return
+    }
+
+    networkExecutor.execute {
+      downloadNetworkSource(source = source, targetFile = cacheFile, requestToken = requestToken)
+    }
+  }
+
+  private fun downloadNetworkSource(source: String, targetFile: File, requestToken: Long) {
+    var connection: HttpURLConnection? = null
+    val tempFile = File(
+      targetFile.parentFile ?: context.cacheDir,
+      "${targetFile.name}.download.$requestToken",
+    )
+    try {
+      targetFile.parentFile?.mkdirs()
+      if (tempFile.exists()) {
+        tempFile.delete()
+      }
+
+      connection = (URL(source).openConnection() as HttpURLConnection).apply {
+        requestMethod = "GET"
+        instanceFollowRedirects = true
+        connectTimeout = 15000
+        readTimeout = 30000
+        doInput = true
+      }
+      setActiveDownloadConnection(connection, requestToken)
+      connection.connect()
+
+      val responseCode = connection.responseCode
+      if (responseCode !in 200..299) {
+        throw IOException("Network request failed with status $responseCode")
+      }
+
+      connection.inputStream.use { input ->
+        tempFile.outputStream().use { output ->
+          input.copyTo(output)
+        }
+      }
+
+      clearActiveDownloadConnection(connection)
+
+      if (!isRequestTokenCurrent(requestToken)) {
+        tempFile.delete()
+        return
+      }
+      if (tempFile.length() <= 0L) {
+        throw IOException("Downloaded file is empty")
+      }
+
+      if (targetFile.exists() && !targetFile.delete()) {
+        throw IOException("Unable to replace cached file at ${targetFile.absolutePath}")
+      }
+      if (!tempFile.renameTo(targetFile)) {
+        tempFile.copyTo(targetFile, overwrite = true)
+        tempFile.delete()
+      }
+
+      if (!isRequestTokenCurrent(requestToken)) {
+        return
+      }
+
+      runOnMain {
+        if (isRequestTokenCurrent(requestToken)) {
+          animView.startPlay(targetFile)
+        }
+      }
+    } catch (t: Throwable) {
+      clearActiveDownloadConnection(connection)
+      tempFile.delete()
+      if (isRequestTokenCurrent(requestToken)) {
+        emitNetworkFailure("Failed to load network source: ${t.message ?: t.javaClass.simpleName}")
+      }
+    } finally {
+      connection?.disconnect()
+      clearActiveDownloadConnection(connection)
+    }
+  }
+
+  private fun emitNetworkFailure(message: String) {
+    sendPlaybackEvent(
+      VapPlaybackEventMessage(
+        viewId = viewId,
+        type = VapPlaybackEventTypeMessage.FAILED,
+        errorCode = NETWORK_ERROR_CODE,
+        errorMessage = message,
+      ),
+    )
+  }
+
+  private fun invalidatePendingNetworkPlayback(): Long {
+    synchronized(playbackRequestLock) {
+      playbackRequestToken += 1L
+      activeDownloadConnection?.disconnect()
+      activeDownloadConnection = null
+      return playbackRequestToken
+    }
+  }
+
+  private fun isRequestTokenCurrent(requestToken: Long): Boolean {
+    synchronized(playbackRequestLock) {
+      return playbackRequestToken == requestToken
+    }
+  }
+
+  private fun setActiveDownloadConnection(connection: HttpURLConnection, requestToken: Long) {
+    synchronized(playbackRequestLock) {
+      if (isRequestTokenCurrentLocked(requestToken)) {
+        activeDownloadConnection?.disconnect()
+        activeDownloadConnection = connection
+      } else {
+        connection.disconnect()
+      }
+    }
+  }
+
+  private fun clearActiveDownloadConnection(connection: HttpURLConnection?) {
+    synchronized(playbackRequestLock) {
+      if (activeDownloadConnection === connection) {
+        activeDownloadConnection = null
+      }
+    }
+  }
+
+  private fun isRequestTokenCurrentLocked(requestToken: Long): Boolean {
+    return playbackRequestToken == requestToken
+  }
+}
+
+internal object VapNetworkCacheUtils {
+  private const val NETWORK_CACHE_DIR = "vap_player/network"
+
+  fun isSupportedNetworkUrl(source: String): Boolean {
+    val uri = try {
+      URI(source)
+    } catch (_: Exception) {
+      return false
+    }
+    if (!uri.isAbsolute) {
+      return false
+    }
+    val scheme = uri.scheme?.lowercase() ?: return false
+    return scheme == "http" || scheme == "https"
+  }
+
+  fun cacheFileForUrl(cacheRoot: File, url: String): File {
+    val digest = MessageDigest.getInstance("SHA-256").digest(url.toByteArray(Charsets.UTF_8))
+    val hex = digest.joinToString(separator = "") { byte -> "%02x".format(byte) }
+    return File(File(cacheRoot, NETWORK_CACHE_DIR), "$hex.mp4")
   }
 }

@@ -1,6 +1,6 @@
 import 'package:pigeon/pigeon.dart';
 
-enum VapSourceTypeMessage { asset, file }
+enum VapSourceTypeMessage { asset, file, network }
 
 enum VapContentModeMessage { scaleToFill, aspectFit, aspectFill }
 

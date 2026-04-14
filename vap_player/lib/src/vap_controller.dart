@@ -163,6 +163,38 @@ class VapController {
     );
   }
 
+  Future<void> playNetwork(
+    String url, {
+    int repeatCount = 0,
+    bool mute = false,
+    VapContentMode contentMode = VapContentMode.scaleToFill,
+    int? fps,
+    bool frameEventsEnabled = false,
+    Map<String, String> tagValues = const <String, String>{},
+  }) {
+    final Uri? parsed = Uri.tryParse(url);
+    final String? scheme = parsed?.scheme.toLowerCase();
+    final bool valid =
+        parsed != null &&
+        parsed.isAbsolute &&
+        (scheme == 'http' || scheme == 'https');
+    if (!valid) {
+      throw StateError(
+        'playNetwork requires an absolute http/https URL. Received: $url',
+      );
+    }
+    return play(
+      sourceType: VapSourceType.network,
+      source: url,
+      repeatCount: repeatCount,
+      mute: mute,
+      contentMode: contentMode,
+      fps: fps,
+      frameEventsEnabled: frameEventsEnabled,
+      tagValues: tagValues,
+    );
+  }
+
   Future<void> stop() {
     return _platform.stop(_requireViewId());
   }

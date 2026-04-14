@@ -6,6 +6,7 @@ Federated Flutter plugin for [Tencent VAP](https://github.com/Tencent/vap) on An
 
 - `VapView` widget for embedding native VAP rendering views.
 - `VapController` for `play`, `stop`, `mute`, `contentMode`, and frame-event toggling.
+- Source types: `asset`, `file`, and `network` (URL download + cache).
 - VAPX support:
   - synchronous tag/text replacement from `tagValues`
   - async image resolution from Dart via `setImageResolver`
@@ -38,6 +39,11 @@ await controller.playAsset(
     '[sImg1]': 'demo://avatar',
   },
 );
+
+await controller.playNetwork(
+  'https://cdn.example.com/vap/demo.mp4',
+  repeatCount: 0,
+);
 ```
 
 ```dart
@@ -51,3 +57,8 @@ If your environment cannot resolve `QGVAPlayer` from default CocoaPods sources, 
 ## Example
 
 See `vap_player/example` for complete asset playback and VAPX demo flows.
+
+## Notes
+
+- `VapSourceType.network` treats `source` as an absolute `http/https` URL.
+- For network sources, `assetPackage` is ignored.
