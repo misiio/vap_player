@@ -1,0 +1,29 @@
+PODS:
+  - Flutter (1.0.0)
+  - QGVAPlayer (1.0.19)
+  - vap_player_ios (0.1.0):
+    - Flutter
+    - QGVAPlayer (= 1.0.19)
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - vap_player_ios (from `.symlinks/plugins/vap_player_ios/ios`)
+
+SPEC REPOS:
+  trunk:
+    - QGVAPlayer
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  vap_player_ios:
+    :path: ".symlinks/plugins/vap_player_ios/ios"
+
+SPEC CHECKSUMS:
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  QGVAPlayer: a0bca68c9bd6f1c8de5ac2d10ddf98be6038cce9
+  vap_player_ios: a0ff4240a8918ef9380f107c7971a3bca4976361
+
+PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
+
+COCOAPODS: 1.16.2

@@ -1,0 +1,22 @@
+name: vap_player_platform_interface
+description: Platform interface and pigeon contracts for vap_player.
+version: 0.1.0
+homepage: https://github.com/Tencent/vap
+
+environment:
+  sdk: ^3.10.4
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  meta: ^1.17.0
+  plugin_platform_interface: ^2.1.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  pigeon: ^26.0.2
+
+flutter:

@@ -1,0 +1,28 @@
+name: vap_player_android
+description: Android implementation of vap_player.
+version: 0.1.0
+homepage: https://github.com/Tencent/vap
+publish_to: 'none'
+
+environment:
+  sdk: ^3.10.4
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  vap_player_platform_interface:
+    path: ../vap_player_platform_interface
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    implements: vap_player
+    platforms:
+      android:
+        package: com.tencent.vap_player_android
+        pluginClass: VapPlayerAndroidPlugin
