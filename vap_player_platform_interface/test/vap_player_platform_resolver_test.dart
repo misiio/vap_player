@@ -141,6 +141,18 @@ void main() {
     expect(fakeHost.clearNetworkCacheCalls, 1);
     expect(fakeHost.lastPruneMaxBytes, 512);
   });
+
+  test('network auto-eviction max bytes methods forward to host api', () async {
+    final fakeHost = _FakeHostApi();
+    final platform = PigeonVapPlayerPlatform(hostApi: fakeHost);
+
+    fakeHost.networkAutoEvictionMaxBytes = 8192;
+    final value = await platform.getNetworkAutoEvictionMaxBytes();
+    await platform.setNetworkAutoEvictionMaxBytes(4096);
+
+    expect(value, 8192);
+    expect(fakeHost.lastSetNetworkAutoEvictionMaxBytes, 4096);
+  });
 }
 
 class _FakeHostApi extends VapHostApi {
@@ -153,6 +165,8 @@ class _FakeHostApi extends VapHostApi {
   int networkCacheSizeBytes = 0;
   int clearNetworkCacheCalls = 0;
   int? lastPruneMaxBytes;
+  int networkAutoEvictionMaxBytes = 0;
+  int? lastSetNetworkAutoEvictionMaxBytes;
 
   @override
   Future<void> play(VapPlayRequestMessage request) async {
@@ -197,5 +211,15 @@ class _FakeHostApi extends VapHostApi {
   @override
   Future<void> pruneNetworkCacheToBytes(int maxBytes) async {
     lastPruneMaxBytes = maxBytes;
+  }
+
+  @override
+  Future<int> getNetworkAutoEvictionMaxBytes() async {
+    return networkAutoEvictionMaxBytes;
+  }
+
+  @override
+  Future<void> setNetworkAutoEvictionMaxBytes(int maxBytes) async {
+    lastSetNetworkAutoEvictionMaxBytes = maxBytes;
   }
 }

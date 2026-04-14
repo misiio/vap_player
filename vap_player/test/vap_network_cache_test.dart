@@ -35,6 +35,24 @@ void main() {
     expect(() => VapNetworkCache.pruneToBytes(-1), throwsArgumentError);
     expect(fakePlatform.lastPruneMaxBytes, isNull);
   });
+
+  test('VapNetworkCache forwards get/set auto-eviction max bytes', () async {
+    fakePlatform.autoEvictionMaxBytes = 4096;
+
+    final int current = await VapNetworkCache.autoEvictionMaxBytes();
+    await VapNetworkCache.setAutoEvictionMaxBytes(2048);
+
+    expect(current, 4096);
+    expect(fakePlatform.lastSetAutoEvictionMaxBytes, 2048);
+  });
+
+  test('VapNetworkCache rejects negative auto-eviction target', () async {
+    expect(
+      () => VapNetworkCache.setAutoEvictionMaxBytes(-1),
+      throwsArgumentError,
+    );
+    expect(fakePlatform.lastSetAutoEvictionMaxBytes, isNull);
+  });
 }
 
 class _FakeVapPlayerPlatform extends VapPlayerPlatform {
@@ -46,6 +64,8 @@ class _FakeVapPlayerPlatform extends VapPlayerPlatform {
   int networkCacheSizeBytes = 0;
   int clearCalls = 0;
   int? lastPruneMaxBytes;
+  int autoEvictionMaxBytes = 0;
+  int? lastSetAutoEvictionMaxBytes;
 
   @override
   Stream<VapPlaybackEvent> get playbackEvents => _playbackController.stream;
@@ -87,5 +107,15 @@ class _FakeVapPlayerPlatform extends VapPlayerPlatform {
   @override
   Future<void> pruneNetworkCacheToBytes(int maxBytes) async {
     lastPruneMaxBytes = maxBytes;
+  }
+
+  @override
+  Future<int> getNetworkAutoEvictionMaxBytes() async {
+    return autoEvictionMaxBytes;
+  }
+
+  @override
+  Future<void> setNetworkAutoEvictionMaxBytes(int maxBytes) async {
+    lastSetAutoEvictionMaxBytes = maxBytes;
   }
 }

@@ -324,6 +324,8 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   int networkCacheSizeBytes = 0;
   int clearNetworkCacheCalls = 0;
   int? lastPruneNetworkCacheToBytes;
+  int autoEvictionMaxBytes = 0;
+  int? lastSetAutoEvictionMaxBytes;
 
   @override
   Stream<VapPlaybackEvent> get playbackEvents => _playbackController.stream;
@@ -387,6 +389,16 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   @override
   Future<void> pruneNetworkCacheToBytes(int maxBytes) async {
     lastPruneNetworkCacheToBytes = maxBytes;
+  }
+
+  @override
+  Future<int> getNetworkAutoEvictionMaxBytes() async {
+    return autoEvictionMaxBytes;
+  }
+
+  @override
+  Future<void> setNetworkAutoEvictionMaxBytes(int maxBytes) async {
+    lastSetAutoEvictionMaxBytes = maxBytes;
   }
 
   void emitPlayback(VapPlaybackEvent event) {

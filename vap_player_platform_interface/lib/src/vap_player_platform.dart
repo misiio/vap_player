@@ -42,6 +42,10 @@ abstract class VapPlayerPlatform extends PlatformInterface {
   Future<void> clearNetworkCache();
 
   Future<void> pruneNetworkCacheToBytes(int maxBytes);
+
+  Future<int> getNetworkAutoEvictionMaxBytes();
+
+  Future<void> setNetworkAutoEvictionMaxBytes(int maxBytes);
 }
 
 class PigeonVapPlayerPlatform extends VapPlayerPlatform {
@@ -138,6 +142,16 @@ class PigeonVapPlayerPlatform extends VapPlayerPlatform {
   @override
   Future<void> pruneNetworkCacheToBytes(int maxBytes) {
     return _hostApi.pruneNetworkCacheToBytes(maxBytes);
+  }
+
+  @override
+  Future<int> getNetworkAutoEvictionMaxBytes() {
+    return _hostApi.getNetworkAutoEvictionMaxBytes();
+  }
+
+  @override
+  Future<void> setNetworkAutoEvictionMaxBytes(int maxBytes) {
+    return _hostApi.setNetworkAutoEvictionMaxBytes(maxBytes);
   }
 
   void addPlaybackEvent(VapPlaybackEventMessage event) {

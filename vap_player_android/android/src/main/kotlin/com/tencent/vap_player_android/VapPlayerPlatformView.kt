@@ -37,7 +37,6 @@ class VapPlayerPlatformView(
     const val VIEW_TYPE: String = "vap_player/view"
     private const val TAG: String = "VapPlayerPlatformView"
     private const val NETWORK_ERROR_CODE: Long = -1L
-    private const val NETWORK_AUTO_EVICT_MAX_BYTES: Long = 100L * 1024L * 1024L
   }
 
   private val mainHandler = Handler(Looper.getMainLooper())
@@ -409,7 +408,7 @@ class VapPlayerPlatformView(
       try {
         VapNetworkCacheUtils.pruneNetworkCacheToBytes(
           cacheRoot = context.cacheDir,
-          maxBytes = NETWORK_AUTO_EVICT_MAX_BYTES,
+          maxBytes = VapNetworkCacheUtils.autoEvictionMaxBytes(),
           protectedFile = targetFile,
         )
       } catch (t: Throwable) {
@@ -488,7 +487,9 @@ class VapPlayerPlatformView(
 }
 
 internal object VapNetworkCacheUtils {
+  private const val DEFAULT_AUTO_EVICTION_MAX_BYTES: Long = 100L * 1024L * 1024L
   private const val NETWORK_CACHE_DIR = "vap_player/network"
+  @Volatile private var networkAutoEvictionMaxBytes: Long = DEFAULT_AUTO_EVICTION_MAX_BYTES
 
   fun isSupportedNetworkUrl(source: String): Boolean {
     val uri = try {
@@ -577,5 +578,14 @@ internal object VapNetworkCacheUtils {
     } catch (_: IOException) {
       file.absolutePath
     }
+  }
+
+  fun autoEvictionMaxBytes(): Long {
+    return networkAutoEvictionMaxBytes
+  }
+
+  fun setAutoEvictionMaxBytes(maxBytes: Long) {
+    require(maxBytes >= 0L) { "maxBytes must be >= 0" }
+    networkAutoEvictionMaxBytes = maxBytes
   }
 }

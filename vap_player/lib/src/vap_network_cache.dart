@@ -16,4 +16,15 @@ abstract final class VapNetworkCache {
     }
     return VapPlayerPlatform.instance.pruneNetworkCacheToBytes(maxBytes);
   }
+
+  static Future<int> autoEvictionMaxBytes() {
+    return VapPlayerPlatform.instance.getNetworkAutoEvictionMaxBytes();
+  }
+
+  static Future<void> setAutoEvictionMaxBytes(int maxBytes) {
+    if (maxBytes < 0) {
+      throw ArgumentError.value(maxBytes, 'maxBytes', 'must be >= 0');
+    }
+    return VapPlayerPlatform.instance.setNetworkAutoEvictionMaxBytes(maxBytes);
+  }
 }

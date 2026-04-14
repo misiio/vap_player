@@ -605,6 +605,8 @@ protocol VapHostApi {
   func getNetworkCacheSizeBytes(completion: @escaping (Result<Int64, Error>) -> Void)
   func clearNetworkCache() throws
   func pruneNetworkCacheToBytes(maxBytes: Int64) throws
+  func getNetworkAutoEvictionMaxBytes(completion: @escaping (Result<Int64, Error>) -> Void)
+  func setNetworkAutoEvictionMaxBytes(maxBytes: Int64) throws
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -748,6 +750,36 @@ class VapHostApiSetup {
       }
     } else {
       pruneNetworkCacheToBytesChannel.setMessageHandler(nil)
+    }
+    let getNetworkAutoEvictionMaxBytesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.getNetworkAutoEvictionMaxBytes\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      getNetworkAutoEvictionMaxBytesChannel.setMessageHandler { _, reply in
+        api.getNetworkAutoEvictionMaxBytes { result in
+          switch result {
+          case .success(let res):
+            reply(wrapResult(res))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      getNetworkAutoEvictionMaxBytesChannel.setMessageHandler(nil)
+    }
+    let setNetworkAutoEvictionMaxBytesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setNetworkAutoEvictionMaxBytes\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setNetworkAutoEvictionMaxBytesChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let maxBytesArg = args[0] as! Int64
+        do {
+          try api.setNetworkAutoEvictionMaxBytes(maxBytes: maxBytesArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      setNetworkAutoEvictionMaxBytesChannel.setMessageHandler(nil)
     }
   }
 }

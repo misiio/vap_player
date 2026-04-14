@@ -47,6 +47,8 @@ await controller.playNetwork(
 );
 
 final int cacheBytes = await VapNetworkCache.sizeBytes();
+final int autoLimitBytes = await VapNetworkCache.autoEvictionMaxBytes();
+await VapNetworkCache.setAutoEvictionMaxBytes(200 * 1024 * 1024);
 await VapNetworkCache.pruneToBytes(100 * 1024 * 1024);
 await VapNetworkCache.clear();
 ```
@@ -67,4 +69,4 @@ See `vap_player/example` for complete asset playback and VAPX demo flows.
 
 - `VapSourceType.network` treats `source` as an absolute `http/https` URL.
 - For network sources, `assetPackage` is ignored.
-- Native network cache auto-evicts oldest files after successful downloads when cache size exceeds 100 MiB.
+- Native network cache auto-evicts oldest files after successful downloads when cache size exceeds the configured limit (default `100 MiB`).

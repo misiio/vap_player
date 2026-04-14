@@ -625,6 +625,8 @@ interface VapHostApi {
   fun getNetworkCacheSizeBytes(callback: (Result<Long>) -> Unit)
   fun clearNetworkCache()
   fun pruneNetworkCacheToBytes(maxBytes: Long)
+  fun getNetworkAutoEvictionMaxBytes(callback: (Result<Long>) -> Unit)
+  fun setNetworkAutoEvictionMaxBytes(maxBytes: Long)
 
   companion object {
     /** The codec used by VapHostApi. */
@@ -788,6 +790,42 @@ interface VapHostApi {
             val maxBytesArg = args[0] as Long
             val wrapped: List<Any?> = try {
               api.pruneNetworkCacheToBytes(maxBytesArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              VapPlayerMessagesPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.getNetworkAutoEvictionMaxBytes$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { _, reply ->
+            api.getNetworkAutoEvictionMaxBytes{ result: Result<Long> ->
+              val error = result.exceptionOrNull()
+              if (error != null) {
+                reply.reply(VapPlayerMessagesPigeonUtils.wrapError(error))
+              } else {
+                val data = result.getOrNull()
+                reply.reply(VapPlayerMessagesPigeonUtils.wrapResult(data))
+              }
+            }
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setNetworkAutoEvictionMaxBytes$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val maxBytesArg = args[0] as Long
+            val wrapped: List<Any?> = try {
+              api.setNetworkAutoEvictionMaxBytes(maxBytesArg)
               listOf(null)
             } catch (exception: Throwable) {
               VapPlayerMessagesPigeonUtils.wrapError(exception)

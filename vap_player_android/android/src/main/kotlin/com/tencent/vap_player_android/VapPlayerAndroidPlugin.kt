@@ -87,6 +87,17 @@ class VapPlayerAndroidPlugin : FlutterPlugin, VapHostApi {
     )
   }
 
+  override fun getNetworkAutoEvictionMaxBytes(callback: (Result<Long>) -> Unit) {
+    callback(Result.success(VapNetworkCacheUtils.autoEvictionMaxBytes()))
+  }
+
+  override fun setNetworkAutoEvictionMaxBytes(maxBytes: Long) {
+    if (maxBytes < 0L) {
+      throw FlutterError("invalid-args", "setNetworkAutoEvictionMaxBytes requires maxBytes >= 0", null)
+    }
+    VapNetworkCacheUtils.setAutoEvictionMaxBytes(maxBytes)
+  }
+
   private fun requireView(viewId: Long): VapPlayerPlatformView {
     return platformViews[viewId]
       ?: throw FlutterError("not-found", "No VapView found for viewId=$viewId", null)

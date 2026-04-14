@@ -108,6 +108,19 @@ class VapNetworkCacheUtilsTest {
     }
   }
 
+  @Test
+  fun `auto-eviction max bytes can be updated`() {
+    VapNetworkCacheUtils.setAutoEvictionMaxBytes(1024L)
+    assertEquals(1024L, VapNetworkCacheUtils.autoEvictionMaxBytes())
+  }
+
+  @Test
+  fun `auto-eviction max bytes rejects negative values`() {
+    assertFailsWith<IllegalArgumentException> {
+      VapNetworkCacheUtils.setAutoEvictionMaxBytes(-1L)
+    }
+  }
+
   private fun createTempCacheRoot(): File {
     return createTempDirectory("vap-network-cache-test").toFile()
   }

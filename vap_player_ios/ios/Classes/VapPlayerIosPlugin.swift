@@ -88,6 +88,21 @@ public final class VapPlayerIosPlugin: NSObject, FlutterPlugin, VapHostApi {
     try VapNetworkCacheUtils.pruneNetworkCacheToBytes(maxBytes: maxBytes, protectedFileURL: nil)
   }
 
+  func getNetworkAutoEvictionMaxBytes(completion: @escaping (Result<Int64, Error>) -> Void) {
+    completion(.success(VapNetworkCacheUtils.autoEvictionMaxBytes()))
+  }
+
+  func setNetworkAutoEvictionMaxBytes(maxBytes: Int64) throws {
+    if maxBytes < 0 {
+      throw PigeonError(
+        code: "invalid-args",
+        message: "setNetworkAutoEvictionMaxBytes requires maxBytes >= 0",
+        details: nil
+      )
+    }
+    VapNetworkCacheUtils.setAutoEvictionMaxBytes(maxBytes)
+  }
+
   private func requireView(viewId: Int64) throws -> VapPlayerPlatformView {
     guard let view = platformViews[viewId] else {
       throw PigeonError(code: "not-found", message: "No VapView found for viewId=\(viewId)", details: nil)
@@ -137,7 +152,6 @@ final class VapPlayerPlatformViewFactory: NSObject, FlutterPlatformViewFactory {
 
 final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDelegate {
   static let viewType = "vap_player/view"
-  private static let networkAutoEvictMaxBytes: Int64 = 100 * 1024 * 1024
 
   let viewId: Int64
 
@@ -469,7 +483,7 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
       }
       VapNetworkCacheUtils.touch(fileURL: cacheURL)
       try? VapNetworkCacheUtils.pruneNetworkCacheToBytes(
-        maxBytes: Self.networkAutoEvictMaxBytes,
+        maxBytes: VapNetworkCacheUtils.autoEvictionMaxBytes(),
         protectedFileURL: cacheURL
       )
 
@@ -581,7 +595,10 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
 }
 
 private enum VapNetworkCacheUtils {
+  private static let defaultAutoEvictionMaxBytes: Int64 = 100 * 1024 * 1024
   private static let cacheSubdirectory = "vap_player/network"
+  private static var configuredAutoEvictionMaxBytes: Int64 =
+    defaultAutoEvictionMaxBytes
 
   static func cacheDirectoryURL() -> URL {
     let cacheRoot = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
@@ -691,5 +708,16 @@ private enum VapNetworkCacheUtils {
       [.modificationDate: Date()],
       ofItemAtPath: fileURL.path
     )
+  }
+
+  static func autoEvictionMaxBytes() -> Int64 {
+    configuredAutoEvictionMaxBytes
+  }
+
+  static func setAutoEvictionMaxBytes(_ maxBytes: Int64) {
+    guard maxBytes >= 0 else {
+      return
+    }
+    configuredAutoEvictionMaxBytes = maxBytes
   }
 }

@@ -85,6 +85,11 @@ abstract class VapHostApi {
   void clearNetworkCache();
 
   void pruneNetworkCacheToBytes(int maxBytes);
+
+  @async
+  int getNetworkAutoEvictionMaxBytes();
+
+  void setNetworkAutoEvictionMaxBytes(int maxBytes);
 }
 
 @FlutterApi()
