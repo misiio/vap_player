@@ -1,39 +1,26 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# vap_player_platform_interface
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
+A common platform interface for the [`flutter_vap_player`][1] plugin.
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
+This interface allows platform-specific implementations of the `flutter_vap_player`
+plugin, as well as the plugin itself, to ensure they are supporting the
+same interface.
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+# Usage
 
-## Features
+To implement a new platform-specific implementation of `flutter_vap_player`, extend
+[`VapPlayerPlatform`][2] with an implementation that performs the
+platform-specific behavior, and when you register your plugin, set the default
+`VapPlayerPlatform` by calling
+`VapPlayerPlatform.instance = MyVapPlayerPlatform()`.
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+# Note on breaking changes
 
-## Getting started
+Strongly prefer non-breaking changes (such as adding a method to the interface)
+over breaking changes for this package.
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+See https://flutter.dev/go/platform-interface-breaking-changes for a discussion
+on why a less-clean interface is preferable to a breaking change.
 
-## Usage
-
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
-
-```dart
-const like = 'sample';
-```
-
-## Additional information
-
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+[1]: ../vap_player
+[2]: lib/vap_player_platform_interface.dart

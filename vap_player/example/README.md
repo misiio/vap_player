@@ -1,6 +1,6 @@
 # vap_player_example
 
-Demonstrates how to use the vap_player plugin.
+Demonstrates how to use the flutter_vap_player plugin.
 
 ## Getting Started
 

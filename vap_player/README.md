@@ -1,6 +1,13 @@
-# vap_player
+# flutter_vap_player
+<?code-excerpt path-base="example/lib"?>
 
-Federated Flutter plugin for [Tencent VAP](https://github.com/Tencent/vap) on Android and iOS.
+[![pub package](https://img.shields.io/pub/v/flutter_vap_player.svg)](https://pub.dev/packages/flutter_vap_player)
+
+A federated Flutter plugin for [Tencent VAP](https://github.com/Tencent/vap) on Android and iOS.
+
+|             | Android | iOS     |
+|-------------|---------|---------|
+| **Support** | SDK 24+ | iOS 13+ |
 
 ## Features
 
@@ -15,7 +22,7 @@ Federated Flutter plugin for [Tencent VAP](https://github.com/Tencent/vap) on An
 
 ## Package Layout
 
-- `vap_player` (app-facing API)
+- `flutter_vap_player` (app-facing API)
 - `vap_player_platform_interface` (shared models + pigeon contracts)
 - `vap_player_android` (Android implementation, depends on `io.github.tencent:vap:2.0.28`)
 - `vap_player_ios` (iOS implementation, depends on `QGVAPlayer` `1.0.19`)
@@ -23,6 +30,8 @@ Federated Flutter plugin for [Tencent VAP](https://github.com/Tencent/vap) on An
 ## Quick Use
 
 ```dart
+import 'package:flutter_vap_player/flutter_vap_player.dart';
+
 final controller = VapController();
 
 controller.setImageResolver((request) async {
@@ -63,7 +72,7 @@ If your environment cannot resolve `QGVAPlayer` from default CocoaPods sources, 
 
 ## Example
 
-See `vap_player/example` for complete asset playback and VAPX demo flows.
+See `flutter_vap_player/example` for complete asset playback and VAPX demo flows.
 
 ## Notes
 

@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vap_player/vap_player.dart';
+import 'package:flutter_vap_player/flutter_vap_player.dart';
 import 'package:vap_player_platform_interface/vap_player_platform_interface.dart';
 
 void main() {

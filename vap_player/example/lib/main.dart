@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:vap_player/vap_player.dart';
+import 'package:flutter_vap_player/flutter_vap_player.dart';
 
 void main() {
   runApp(const MaterialApp(home: VapDemoPage()));

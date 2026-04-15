@@ -9,7 +9,7 @@ Pod::Spec.new do |s|
   s.description      = <<-DESC
 iOS implementation of vap_player backed by QGVAPlayer.
                        DESC
-  s.homepage         = 'https://github.com/Tencent/vap'
+  s.homepage         = 'https://github.com/misiio/vap_player'
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'Your Company' => 'email@example.com' }
   s.source           = { :path => '.' }
