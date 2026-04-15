@@ -1,4 +1,4 @@
-group = "com.tencent.vap_player_android"
+group = "app.misi.vap_player_android"
 version = "1.0-SNAPSHOT"
 
 buildscript {
@@ -27,7 +27,7 @@ plugins {
 }
 
 android {
-    namespace = "com.tencent.vap_player_android"
+    namespace = "app.misi.vap_player_android"
 
     compileSdk = 36
 

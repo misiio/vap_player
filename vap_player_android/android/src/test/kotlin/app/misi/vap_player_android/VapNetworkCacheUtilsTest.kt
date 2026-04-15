@@ -1,4 +1,4 @@
-package com.tencent.vap_player_android
+package app.misi.vap_player_android
 
 import java.io.File
 import kotlin.io.path.createTempDirectory
