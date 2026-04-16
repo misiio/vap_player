@@ -221,7 +221,7 @@ enum class VapContentModeMessage(val raw: Int) {
 
 enum class VapPlaybackEventTypeMessage(val raw: Int) {
   CONFIG_READY(0),
-  START(1),
+  STARTED(1),
   FRAME(2),
   COMPLETE(3),
   DESTROY(4),

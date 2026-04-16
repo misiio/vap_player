@@ -248,7 +248,7 @@ class VapPlayerPlatformView(
     sendPlaybackEvent(
       VapPlaybackEventMessage(
         viewId = viewId,
-        type = VapPlaybackEventTypeMessage.START,
+        type = VapPlaybackEventTypeMessage.STARTED,
       ),
     )
   }

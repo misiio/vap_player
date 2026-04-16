@@ -192,7 +192,7 @@ enum VapContentModeMessage: Int {
 
 enum VapPlaybackEventTypeMessage: Int {
   case configReady = 0
-  case start = 1
+  case started = 1
   case frame = 2
   case complete = 3
   case destroy = 4

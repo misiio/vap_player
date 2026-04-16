@@ -318,7 +318,7 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
     emitPlayback(
       VapPlaybackEventMessage(
         viewId: viewId,
-        type: .start
+        type: .started
       )
     )
   }

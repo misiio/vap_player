@@ -6,7 +6,7 @@ enum VapContentModeMessage { scaleToFill, aspectFit, aspectFill }
 
 enum VapPlaybackEventTypeMessage {
   configReady,
-  start,
+  started,
   frame,
   complete,
   destroy,

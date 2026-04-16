@@ -121,7 +121,7 @@ enum VapContentModeMessage {
 
 enum VapPlaybackEventTypeMessage {
   configReady,
-  start,
+  started,
   frame,
   complete,
   destroy,

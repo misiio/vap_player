@@ -248,8 +248,8 @@ class PigeonVapPlayerPlatform extends VapPlayerPlatform {
     switch (type) {
       case VapPlaybackEventTypeMessage.configReady:
         return VapPlaybackEventType.configReady;
-      case VapPlaybackEventTypeMessage.start:
-        return VapPlaybackEventType.start;
+      case VapPlaybackEventTypeMessage.started:
+        return VapPlaybackEventType.started;
       case VapPlaybackEventTypeMessage.frame:
         return VapPlaybackEventType.frame;
       case VapPlaybackEventTypeMessage.complete:

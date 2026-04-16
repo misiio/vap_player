@@ -146,10 +146,10 @@ void main() {
     final sub = controller.playbackEvents.listen(events.add);
 
     fakePlatform.emitPlayback(
-      const VapPlaybackEvent(viewId: 8, type: VapPlaybackEventType.start),
+      const VapPlaybackEvent(viewId: 8, type: VapPlaybackEventType.started),
     );
     fakePlatform.emitPlayback(
-      const VapPlaybackEvent(viewId: 7, type: VapPlaybackEventType.start),
+      const VapPlaybackEvent(viewId: 7, type: VapPlaybackEventType.started),
     );
 
     await Future<void>.delayed(const Duration(milliseconds: 10));
