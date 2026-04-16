@@ -1,3 +1,7 @@
+## Unreleased
+
+- Document stable network failure error-code mapping (`1001..1005`) used by platform implementations for `VapPlaybackEvent.errorCode`.
+
 ## 0.1.0
 
 - Initial platform interface release for the Flutter VAP federated plugin.

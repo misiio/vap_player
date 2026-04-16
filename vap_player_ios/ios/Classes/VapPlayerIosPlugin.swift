@@ -165,6 +165,7 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
   private var frameEventsEnabled = false
   private var playbackRequestToken: Int64 = 0
   private var activeDownloadTask: URLSessionDownloadTask?
+  private var activeDownloadDelegate: VapBoundedDownloadTaskDelegate?
   private let playbackRequestLock = NSLock()
   private var released = false
 
@@ -429,12 +430,19 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
   }
 
   private func playNetworkSource(urlString: String, repeatCount: Int, requestToken: Int64) {
+    let sanitizedSource = VapNetworkPolicy.sanitizeURLString(urlString)
     guard let url = URL(string: urlString) else {
-      emitNetworkFailure(message: "Invalid network URL: \(urlString)")
+      emitNetworkFailure(
+        code: VapNetworkFailureCode.invalidUrl,
+        message: "Invalid network URL: \(sanitizedSource)"
+      )
       return
     }
     guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
-      emitNetworkFailure(message: "Unsupported URL scheme for network source: \(urlString)")
+      emitNetworkFailure(
+        code: VapNetworkFailureCode.invalidUrl,
+        message: "Unsupported URL scheme for network source: \(sanitizedSource)"
+      )
       return
     }
 
@@ -445,40 +453,98 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
       return
     }
 
-    startNetworkDownload(url: url, cacheURL: cacheURL, repeatCount: repeatCount, requestToken: requestToken)
+    startNetworkDownload(
+      url: url,
+      cacheURL: cacheURL,
+      repeatCount: repeatCount,
+      requestToken: requestToken,
+      sanitizedSource: sanitizedSource
+    )
   }
 
   private func startNetworkDownload(
     url: URL,
     cacheURL: URL,
     repeatCount: Int,
-    requestToken: Int64
+    requestToken: Int64,
+    sanitizedSource: String
   ) {
-    let task = URLSession.shared.downloadTask(with: url) { [weak self] tempURL, _, error in
+    let maxDownloadBytes = VapNetworkPolicy.maxDownloadBytes(
+      autoEvictionMaxBytes: VapNetworkCacheUtils.autoEvictionMaxBytes()
+    )
+    let downloadDelegate = VapBoundedDownloadTaskDelegate(
+      sourceForError: sanitizedSource,
+      url: url,
+      maxDownloadBytes: maxDownloadBytes,
+      maxRedirects: VapNetworkPolicy.maxRedirects
+    ) { [weak self] result in
       guard let self else { return }
       self.clearActiveDownloadTask(requestToken: requestToken)
-      guard self.isRequestTokenCurrent(requestToken) else { return }
-
-      if let error {
-        self.emitNetworkFailure(code: Int64((error as NSError).code), message: error.localizedDescription)
-        return
-      }
-
-      guard let tempURL else {
-        self.emitNetworkFailure(message: "Network download did not provide file data.")
+      guard self.isRequestTokenCurrent(requestToken) else {
+        if case .success(let tempURL) = result {
+          try? FileManager.default.removeItem(at: tempURL)
+        }
         return
       }
 
       do {
+        let tempURL: URL
+        switch result {
+        case .failure(let error):
+          self.emitNetworkFailure(code: error.code, message: error.message)
+          return
+        case .success(let downloadedURL):
+          tempURL = downloadedURL
+        }
+
+        if !VapNetworkPolicy.hasIsoBmffSignature(fileURL: tempURL) {
+          try? FileManager.default.removeItem(at: tempURL)
+          self.emitNetworkFailure(
+            code: VapNetworkFailureCode.invalidMedia,
+            message: "Downloaded file does not have a valid MP4 signature for \(sanitizedSource)"
+          )
+          return
+        }
+
         let parent = cacheURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
         if FileManager.default.fileExists(atPath: cacheURL.path) {
           try FileManager.default.removeItem(at: cacheURL)
         }
         try FileManager.default.moveItem(at: tempURL, to: cacheURL)
+
+        let attrs = try FileManager.default.attributesOfItem(atPath: cacheURL.path)
+        let fileSize = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+        if fileSize <= 0 {
+          try? FileManager.default.removeItem(at: cacheURL)
+          self.emitNetworkFailure(
+            code: VapNetworkFailureCode.invalidMedia,
+            message: "Downloaded file is empty for \(sanitizedSource)"
+          )
+          return
+        }
+        if fileSize > maxDownloadBytes {
+          try? FileManager.default.removeItem(at: cacheURL)
+          self.emitNetworkFailure(
+            code: VapNetworkFailureCode.sizeExceeded,
+            message: "Downloaded file exceeds max download size (\(maxDownloadBytes) bytes) for \(sanitizedSource)"
+          )
+          return
+        }
+        if !VapNetworkPolicy.hasIsoBmffSignature(fileURL: cacheURL) {
+          try? FileManager.default.removeItem(at: cacheURL)
+          self.emitNetworkFailure(
+            code: VapNetworkFailureCode.invalidMedia,
+            message: "Downloaded file does not have a valid MP4 signature for \(sanitizedSource)"
+          )
+          return
+        }
       } catch {
-        let nsError = error as NSError
-        self.emitNetworkFailure(code: Int64(nsError.code), message: nsError.localizedDescription)
+        try? FileManager.default.removeItem(at: cacheURL)
+        self.emitNetworkFailure(
+          code: VapNetworkFailureCode.networkIo,
+          message: "Failed to load network source: \(sanitizedSource)"
+        )
         return
       }
       VapNetworkCacheUtils.touch(fileURL: cacheURL)
@@ -491,12 +557,16 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
       self.playLocalFile(path: cacheURL.path, repeatCount: repeatCount, requestToken: requestToken)
     }
 
-    if setActiveDownloadTask(task: task, requestToken: requestToken) {
-      task.resume()
+    if setActiveDownloadTask(
+      task: downloadDelegate.task,
+      delegate: downloadDelegate,
+      requestToken: requestToken
+    ) {
+      downloadDelegate.start()
     }
   }
 
-  private func emitNetworkFailure(code: Int64 = -1, message: String) {
+  private func emitNetworkFailure(code: Int64, message: String) {
     emitPlayback(
       VapPlaybackEventMessage(
         viewId: viewId,
@@ -511,8 +581,9 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
     playbackRequestLock.lock()
     defer { playbackRequestLock.unlock() }
     playbackRequestToken += 1
-    activeDownloadTask?.cancel()
+    activeDownloadDelegate?.cancel()
     activeDownloadTask = nil
+    activeDownloadDelegate = nil
     return playbackRequestToken
   }
 
@@ -522,15 +593,20 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
     return playbackRequestToken == requestToken
   }
 
-  private func setActiveDownloadTask(task: URLSessionDownloadTask, requestToken: Int64) -> Bool {
+  private func setActiveDownloadTask(
+    task: URLSessionDownloadTask,
+    delegate: VapBoundedDownloadTaskDelegate,
+    requestToken: Int64
+  ) -> Bool {
     playbackRequestLock.lock()
     defer { playbackRequestLock.unlock() }
     guard playbackRequestToken == requestToken else {
-      task.cancel()
+      delegate.cancel()
       return false
     }
-    activeDownloadTask?.cancel()
+    activeDownloadDelegate?.cancel()
     activeDownloadTask = task
+    activeDownloadDelegate = delegate
     return true
   }
 
@@ -539,6 +615,7 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
     defer { playbackRequestLock.unlock() }
     if playbackRequestToken == requestToken {
       activeDownloadTask = nil
+      activeDownloadDelegate = nil
     }
   }
 
@@ -558,7 +635,7 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
     else {
       return false
     }
-    return fileSize.int64Value > 0
+    return fileSize.int64Value > 0 && VapNetworkPolicy.hasIsoBmffSignature(fileURL: url)
   }
 
   private func sha256Hex(_ input: String) -> String {

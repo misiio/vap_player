@@ -17,6 +17,7 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.platform.PlatformView
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
@@ -36,7 +37,6 @@ class VapPlayerPlatformView(
   companion object {
     const val VIEW_TYPE: String = "vap_player/view"
     private const val TAG: String = "VapPlayerPlatformView"
-    private const val NETWORK_ERROR_CODE: Long = -1L
   }
 
   private val mainHandler = Handler(Looper.getMainLooper())
@@ -333,8 +333,12 @@ class VapPlayerPlatformView(
   }
 
   private fun playNetworkSource(source: String, requestToken: Long) {
+    val sanitizedSource = VapNetworkPolicy.sanitizeUrlForError(source)
     if (!VapNetworkCacheUtils.isSupportedNetworkUrl(source)) {
-      emitNetworkFailure("Invalid network URL: $source")
+      emitNetworkFailure(
+        code = VapNetworkFailureCode.INVALID_URL,
+        message = "Invalid network URL: $sanitizedSource",
+      )
       return
     }
 
@@ -350,51 +354,120 @@ class VapPlayerPlatformView(
     }
 
     networkExecutor.execute {
-      downloadNetworkSource(source = source, targetFile = cacheFile, requestToken = requestToken)
+      downloadNetworkSource(
+        source = source,
+        targetFile = cacheFile,
+        requestToken = requestToken,
+        sanitizedSource = sanitizedSource,
+      )
     }
   }
 
-  private fun downloadNetworkSource(source: String, targetFile: File, requestToken: Long) {
+  private fun downloadNetworkSource(
+    source: String,
+    targetFile: File,
+    requestToken: Long,
+    sanitizedSource: String,
+  ) {
     var connection: HttpURLConnection? = null
     val tempFile = File(
       targetFile.parentFile ?: context.cacheDir,
       "${targetFile.name}.download.$requestToken",
     )
+    val maxDownloadBytes = VapNetworkPolicy.maxDownloadBytes()
     try {
       targetFile.parentFile?.mkdirs()
       if (tempFile.exists()) {
         tempFile.delete()
       }
 
-      connection = (URL(source).openConnection() as HttpURLConnection).apply {
-        requestMethod = "GET"
-        instanceFollowRedirects = true
-        connectTimeout = 15000
-        readTimeout = 30000
-        doInput = true
-      }
-      setActiveDownloadConnection(connection, requestToken)
-      connection.connect()
+      var currentUrl = URL(source)
+      var redirectCount = 0
+      while (true) {
+        val currentConnection = openNetworkConnection(currentUrl)
+        connection = currentConnection
+        setActiveDownloadConnection(currentConnection, requestToken)
+        currentConnection.connect()
 
-      val responseCode = connection.responseCode
-      if (responseCode !in 200..299) {
-        throw IOException("Network request failed with status $responseCode")
-      }
-
-      connection.inputStream.use { input ->
-        tempFile.outputStream().use { output ->
-          input.copyTo(output)
+        val responseCode = currentConnection.responseCode
+        if (responseCode in 300..399) {
+          if (redirectCount >= VapNetworkPolicy.MAX_REDIRECTS) {
+            throw NetworkPlaybackException(
+              errorCode = VapNetworkFailureCode.NETWORK_IO,
+              message = "Too many redirects while loading $sanitizedSource",
+            )
+          }
+          val location = currentConnection.getHeaderField("Location")
+            ?: throw NetworkPlaybackException(
+              errorCode = VapNetworkFailureCode.HTTP_STATUS,
+              message = "Redirect response missing Location header for $sanitizedSource",
+            )
+          val redirectedUrl = URL(currentUrl, location)
+          if (!VapNetworkCacheUtils.isSupportedNetworkUrl(redirectedUrl.toString())) {
+            throw NetworkPlaybackException(
+              errorCode = VapNetworkFailureCode.INVALID_URL,
+              message = "Redirected URL is not http/https for $sanitizedSource",
+            )
+          }
+          clearActiveDownloadConnection(currentConnection)
+          currentConnection.disconnect()
+          connection = null
+          currentUrl = redirectedUrl
+          redirectCount += 1
+          continue
         }
+
+        if (responseCode !in 200..299) {
+          throw NetworkPlaybackException(
+            errorCode = VapNetworkFailureCode.HTTP_STATUS,
+            message = "Network request failed with status $responseCode for $sanitizedSource",
+          )
+        }
+
+        val contentLength = currentConnection.contentLengthLong
+        if (contentLength > maxDownloadBytes) {
+          throw NetworkPlaybackException(
+            errorCode = VapNetworkFailureCode.SIZE_EXCEEDED,
+            message = "Network response exceeds max download size (${maxDownloadBytes} bytes) for $sanitizedSource",
+          )
+        }
+
+        currentConnection.inputStream.use { input ->
+          copyStreamToFileWithLimit(
+            input = input,
+            targetFile = tempFile,
+            maxDownloadBytes = maxDownloadBytes,
+            sanitizedSource = sanitizedSource,
+          )
+        }
+        break
       }
 
       clearActiveDownloadConnection(connection)
+      connection?.disconnect()
+      connection = null
 
       if (!isRequestTokenCurrent(requestToken)) {
         tempFile.delete()
         return
       }
       if (tempFile.length() <= 0L) {
-        throw IOException("Downloaded file is empty")
+        throw NetworkPlaybackException(
+          errorCode = VapNetworkFailureCode.INVALID_MEDIA,
+          message = "Downloaded file is empty for $sanitizedSource",
+        )
+      }
+      if (tempFile.length() > maxDownloadBytes) {
+        throw NetworkPlaybackException(
+          errorCode = VapNetworkFailureCode.SIZE_EXCEEDED,
+          message = "Downloaded file exceeds max download size (${maxDownloadBytes} bytes) for $sanitizedSource",
+        )
+      }
+      if (!VapNetworkPolicy.hasIsoBmffSignature(tempFile)) {
+        throw NetworkPlaybackException(
+          errorCode = VapNetworkFailureCode.INVALID_MEDIA,
+          message = "Downloaded file does not have a valid MP4 signature for $sanitizedSource",
+        )
       }
 
       if (targetFile.exists() && !targetFile.delete()) {
@@ -428,7 +501,18 @@ class VapPlayerPlatformView(
       clearActiveDownloadConnection(connection)
       tempFile.delete()
       if (isRequestTokenCurrent(requestToken)) {
-        emitNetworkFailure("Failed to load network source: ${t.message ?: t.javaClass.simpleName}")
+        val normalizedError = when (t) {
+          is NetworkPlaybackException -> t
+          else -> NetworkPlaybackException(
+            errorCode = VapNetworkFailureCode.NETWORK_IO,
+            message = "Failed to load network source: $sanitizedSource",
+            cause = t,
+          )
+        }
+        emitNetworkFailure(
+          code = normalizedError.errorCode,
+          message = normalizedError.message,
+        )
       }
     } finally {
       connection?.disconnect()
@@ -436,12 +520,49 @@ class VapPlayerPlatformView(
     }
   }
 
-  private fun emitNetworkFailure(message: String) {
+  private fun openNetworkConnection(url: URL): HttpURLConnection {
+    return (url.openConnection() as HttpURLConnection).apply {
+      requestMethod = "GET"
+      instanceFollowRedirects = false
+      connectTimeout = 15000
+      readTimeout = 30000
+      doInput = true
+    }
+  }
+
+  private fun copyStreamToFileWithLimit(
+    input: InputStream,
+    targetFile: File,
+    maxDownloadBytes: Long,
+    sanitizedSource: String,
+  ) {
+    var totalBytes = 0L
+    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+    targetFile.outputStream().use { output ->
+      while (true) {
+        val readBytes = input.read(buffer)
+        if (readBytes < 0) {
+          break
+        }
+        totalBytes += readBytes.toLong()
+        if (totalBytes > maxDownloadBytes) {
+          throw NetworkPlaybackException(
+            errorCode = VapNetworkFailureCode.SIZE_EXCEEDED,
+            message = "Network response exceeds max download size (${maxDownloadBytes} bytes) for $sanitizedSource",
+          )
+        }
+        output.write(buffer, 0, readBytes)
+      }
+      output.flush()
+    }
+  }
+
+  private fun emitNetworkFailure(code: Long, message: String) {
     sendPlaybackEvent(
       VapPlaybackEventMessage(
         viewId = viewId,
         type = VapPlaybackEventTypeMessage.FAILED,
-        errorCode = NETWORK_ERROR_CODE,
+        errorCode = code,
         errorMessage = message,
       ),
     )
@@ -501,7 +622,10 @@ internal object VapNetworkCacheUtils {
       return false
     }
     val scheme = uri.scheme?.lowercase() ?: return false
-    return scheme == "http" || scheme == "https"
+    if (scheme != "http" && scheme != "https") {
+      return false
+    }
+    return !uri.host.isNullOrEmpty()
   }
 
   fun cacheFileForUrl(cacheRoot: File, url: String): File {

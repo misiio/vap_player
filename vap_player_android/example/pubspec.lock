@@ -250,16 +250,18 @@ packages:
   vap_player_android:
     dependency: "direct main"
     description:
-      path: ".."
-      relative: true
-    source: path
-    version: "0.1.0"
+      name: vap_player_android
+      sha256: "1738cd325eceb84ff8521705dd01ccd3e64f7c50f10c713b2d9890edc783498e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.1"
   vap_player_platform_interface:
     dependency: transitive
     description:
-      path: "../../vap_player_platform_interface"
-      relative: true
-    source: path
+      name: vap_player_platform_interface
+      sha256: a9d7fe130823963055534afcc41f9cc250639ebedf066b311fb2c551aa0d4985
+      url: "https://pub.dev"
+    source: hosted
     version: "0.1.0"
   vector_math:
     dependency: transitive
@@ -286,5 +288,5 @@ packages:
     source: hosted
     version: "3.1.0"
 sdks:
-  dart: ">=3.11.1 <4.0.0"
+  dart: ">=3.10.4 <4.0.0"
   flutter: ">=3.22.0"

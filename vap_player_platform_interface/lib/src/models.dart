@@ -14,6 +14,17 @@ enum VapPlaybackEventType {
   failed,
 }
 
+/// Stable network failure codes used by native implementations in
+/// [VapPlaybackEvent.errorCode] when [VapPlaybackEvent.type] is
+/// [VapPlaybackEventType.failed].
+abstract final class VapNetworkFailureCode {
+  static const int invalidUrl = 1001;
+  static const int httpStatus = 1002;
+  static const int sizeExceeded = 1003;
+  static const int invalidMedia = 1004;
+  static const int networkIo = 1005;
+}
+
 class VapPlayRequest {
   const VapPlayRequest({
     required this.viewId,

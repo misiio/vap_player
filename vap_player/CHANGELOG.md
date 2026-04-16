@@ -1,3 +1,9 @@
+## Unreleased
+
+- Harden network playback path on Android and iOS with strict HTTP validation (`2xx`), redirect limits (`3`), bounded downloads, and MP4 signature checks before cache promotion.
+- Document stable network playback failure codes surfaced through `VapPlaybackEvent.errorCode`.
+- Clarify `VapNetworkCache.setAutoEvictionMaxBytes` now governs both cache eviction target and max single network download size (with a `10 MiB` floor).
+
 ## 0.1.0
 
 - Initial public release of the federated Flutter VAP plugin.

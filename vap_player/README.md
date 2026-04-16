@@ -29,41 +29,68 @@ A federated Flutter plugin for [Tencent VAP](https://github.com/Tencent/vap) on 
 
 ## Quick Use
 
+Build `VapView` first, then start playback. Do not block mounting with `await controller.play*()` before the view exists.
+
 ```dart
+import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_vap_player/flutter_vap_player.dart';
 
-final controller = VapController();
+class VapSamplePage extends StatefulWidget {
+  const VapSamplePage({super.key});
 
-controller.setImageResolver((request) async {
-  // Return image bytes for VAPX image resources.
-  return null;
-});
+  @override
+  State<VapSamplePage> createState() => _VapSamplePageState();
+}
 
-await controller.playAsset(
-  'assets/vap.mp4',
-  repeatCount: -1,
-  mute: true,
-  contentMode: VapContentMode.aspectFit,
-  tagValues: const {
-    '[textUser]': 'Alice',
-    '[sImg1]': 'demo://avatar',
-  },
-);
+class _VapSamplePageState extends State<VapSamplePage> {
+  late final VapController _controller;
 
-await controller.playNetwork(
-  'https://cdn.example.com/vap/demo.mp4',
-  repeatCount: 0,
-);
+  @override
+  void initState() {
+    super.initState();
+    _controller = VapController(autoPlay: true, looping: true);
 
-final int cacheBytes = await VapNetworkCache.sizeBytes();
-final int autoLimitBytes = await VapNetworkCache.autoEvictionMaxBytes();
-await VapNetworkCache.setAutoEvictionMaxBytes(200 * 1024 * 1024);
-await VapNetworkCache.pruneToBytes(100 * 1024 * 1024);
-await VapNetworkCache.clear();
+    _controller.setImageResolver((request) async {
+      // Return image bytes for VAPX image resources.
+      return null;
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(
+        _controller.playNetwork(
+          'https://cdn.example.com/vap/demo.mp4',
+          repeatCount: 0,
+          contentMode: VapContentMode.aspectFit,
+        ).catchError((Object error, StackTrace stackTrace) {
+          debugPrint('Failed to start VAP playback: $error');
+          debugPrintStack(stackTrace: stackTrace);
+        }),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    unawaited(_controller.dispose());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return VapView(controller: _controller);
+  }
+}
 ```
 
 ```dart
-VapView(controller: controller)
+final int cacheBytes = await VapNetworkCache.sizeBytes();
+final int autoLimitBytes = await VapNetworkCache.autoEvictionMaxBytes();
+// Controls both cache auto-eviction and max single network download size.
+await VapNetworkCache.setAutoEvictionMaxBytes(200 * 1024 * 1024);
+await VapNetworkCache.pruneToBytes(100 * 1024 * 1024);
+await VapNetworkCache.clear();
 ```
 
 ## iOS Pod Note
@@ -78,4 +105,18 @@ See `flutter_vap_player/example` for complete asset playback and VAPX demo flows
 
 - `VapSourceType.network` treats `source` as an absolute `http/https` URL.
 - For network sources, `assetPackage` is ignored.
+- Native network downloads are hardened with strict `2xx` checks, redirect limits (`3`), size caps, and MP4 signature validation before cache promotion.
+- `VapNetworkCache.setAutoEvictionMaxBytes()` controls both:
+  1. cache auto-eviction target
+  2. maximum allowed size of a single network download (minimum enforced floor: `10 MiB`)
 - Native network cache auto-evicts oldest files after successful downloads when cache size exceeds the configured limit (default `100 MiB`).
+
+### Network Failure Error Codes (`VapPlaybackEvent.errorCode`)
+
+| Code | Meaning |
+|------|---------|
+| `1001` | invalid URL / unsupported scheme |
+| `1002` | HTTP status validation failed |
+| `1003` | response exceeded max download size |
+| `1004` | invalid media (missing/invalid MP4 `ftyp` signature) |
+| `1005` | network I/O failure (including redirect overflow) |

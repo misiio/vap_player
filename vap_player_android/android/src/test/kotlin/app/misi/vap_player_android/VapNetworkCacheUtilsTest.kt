@@ -21,6 +21,7 @@ class VapNetworkCacheUtilsTest {
     assertFalse(VapNetworkCacheUtils.isSupportedNetworkUrl("ftp://example.com/a.mp4"))
     assertFalse(VapNetworkCacheUtils.isSupportedNetworkUrl("/local/file.mp4"))
     assertFalse(VapNetworkCacheUtils.isSupportedNetworkUrl("not a url"))
+    assertFalse(VapNetworkCacheUtils.isSupportedNetworkUrl("https:///no-host.mp4"))
   }
 
   @Test
@@ -119,6 +120,63 @@ class VapNetworkCacheUtilsTest {
     assertFailsWith<IllegalArgumentException> {
       VapNetworkCacheUtils.setAutoEvictionMaxBytes(-1L)
     }
+  }
+
+  @Test
+  fun `effective max download bytes uses at least ten MiB`() {
+    VapNetworkCacheUtils.setAutoEvictionMaxBytes(128 * 1024L)
+
+    assertEquals(10L * 1024L * 1024L, VapNetworkPolicy.maxDownloadBytes())
+  }
+
+  @Test
+  fun `effective max download bytes follows configured auto eviction when larger`() {
+    VapNetworkCacheUtils.setAutoEvictionMaxBytes(16L * 1024L * 1024L)
+
+    assertEquals(16L * 1024L * 1024L, VapNetworkPolicy.maxDownloadBytes())
+  }
+
+  @Test
+  fun `sanitize URL removes query and fragment`() {
+    val sanitized = VapNetworkPolicy.sanitizeUrlForError(
+      "https://cdn.example.com/path/to/demo.mp4?token=secret#section",
+    )
+
+    assertEquals("https://cdn.example.com/path/to/demo.mp4", sanitized)
+    assertFalse(sanitized.contains("?"))
+    assertFalse(sanitized.contains("#"))
+  }
+
+  @Test
+  fun `sanitize URL returns placeholder for invalid input`() {
+    val sanitized = VapNetworkPolicy.sanitizeUrlForError("not-a-valid-url")
+    assertEquals("<invalid-url>", sanitized)
+  }
+
+  @Test
+  fun `mp4 signature sanity check accepts ftyp header`() {
+    val cacheRoot = createTempCacheRoot()
+    val file = File(cacheRoot, "valid.mp4")
+    file.outputStream().use { output ->
+      output.write(byteArrayOf(0x00, 0x00, 0x00, 0x18))
+      output.write("ftyp".toByteArray(Charsets.US_ASCII))
+      output.write(ByteArray(16) { 0x00 })
+    }
+
+    assertTrue(VapNetworkPolicy.hasIsoBmffSignature(file))
+  }
+
+  @Test
+  fun `mp4 signature sanity check rejects invalid header`() {
+    val cacheRoot = createTempCacheRoot()
+    val file = File(cacheRoot, "invalid.mp4")
+    file.outputStream().use { output ->
+      output.write(byteArrayOf(0x00, 0x00, 0x00, 0x18))
+      output.write("moov".toByteArray(Charsets.US_ASCII))
+      output.write(ByteArray(16) { 0x00 })
+    }
+
+    assertFalse(VapNetworkPolicy.hasIsoBmffSignature(file))
   }
 
   private fun createTempCacheRoot(): File {

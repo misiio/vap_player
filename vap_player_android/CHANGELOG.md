@@ -1,3 +1,9 @@
+## Unreleased
+
+- Add hardened Android network download pipeline: strict `2xx` status validation, redirect cap (`3`), bounded transfer size, and MP4 signature validation before caching.
+- Add stable network failure error codes (`1001..1005`) for invalid URL, HTTP status, size exceeded, invalid media, and network I/O.
+- Add policy unit tests for min download floor, URL sanitization, and MP4 signature validation.
+
 ## 0.1.1
 
 - Change Android plugin package/namespace from `com.tencent.vap_player_android` to `app.misi.vap_player_android`.
