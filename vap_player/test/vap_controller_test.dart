@@ -274,6 +274,39 @@ void main() {
     },
   );
 
+  test('controller pause stops and resume replays last request', () async {
+    final controller = VapController();
+    controller.attach(52);
+
+    await controller.playFile(
+      '/tmp/pause-resume.mp4',
+      repeatCount: 3,
+      mute: true,
+      contentMode: VapContentMode.aspectFit,
+      frameEventsEnabled: true,
+      tagValues: const <String, String>{'textUser': 'Bob'},
+    );
+    expect(fakePlatform.playRequests.length, 1);
+
+    await controller.pause();
+    expect(fakePlatform.lastStopViewId, 52);
+
+    await controller.resume();
+    expect(fakePlatform.playRequests.length, 2);
+
+    final resumedRequest = fakePlatform.playRequests.last;
+    expect(resumedRequest.viewId, 52);
+    expect(resumedRequest.sourceType, VapSourceType.file);
+    expect(resumedRequest.source, '/tmp/pause-resume.mp4');
+    expect(resumedRequest.repeatCount, 3);
+    expect(resumedRequest.mute, true);
+    expect(resumedRequest.contentMode, VapContentMode.aspectFit);
+    expect(resumedRequest.frameEventsEnabled, true);
+    expect(resumedRequest.tagValues['textUser'], 'Bob');
+
+    await controller.dispose();
+  });
+
   test('controller filters click events by attached view id', () async {
     final controller = VapController();
     controller.attach(9);

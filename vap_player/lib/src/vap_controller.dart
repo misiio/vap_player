@@ -40,6 +40,8 @@ class VapController {
   int? _viewId;
   VapImageResolver? _imageResolver;
   _PendingPlay? _pendingPlay;
+  _PlayParams? _lastPlayParams;
+  bool _isPaused = false;
   bool _disposed = false;
 
   Stream<VapPlaybackEvent> get playbackEvents =>
@@ -121,6 +123,8 @@ class VapController {
       frameEventsEnabled: frameEventsEnabled,
       tagValues: tagValues,
     );
+    _lastPlayParams = params;
+    _isPaused = false;
 
     final int? currentViewId = _viewId;
     if (currentViewId != null) {
@@ -209,7 +213,31 @@ class VapController {
   }
 
   Future<void> stop() {
+    _isPaused = false;
     return _platform.stop(_requireViewId());
+  }
+
+  Future<void> pause() {
+    final _PlayParams? lastPlayParams = _lastPlayParams;
+    if (lastPlayParams == null) {
+      return Future<void>.value();
+    }
+    _isPaused = true;
+    return _platform.stop(_requireViewId());
+  }
+
+  Future<void> resume() {
+    if (!_isPaused) {
+      return Future<void>.value();
+    }
+    final _PlayParams? lastPlayParams = _lastPlayParams;
+    if (lastPlayParams == null) {
+      _isPaused = false;
+      return Future<void>.value();
+    }
+    _isPaused = false;
+    final int currentViewId = _requireViewId();
+    return _platform.play(_toPlayRequest(currentViewId, lastPlayParams));
   }
 
   Future<void> setMute(bool mute) {
