@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_vap_player/flutter_vap_player.dart';
 import 'package:vap_player_platform_interface/vap_player_platform_interface.dart';
@@ -338,6 +339,36 @@ void main() {
     expect(controller.viewId, isNull);
     await controller.dispose();
   });
+
+  test('onViewDisposed ignores not-found dispose race', () async {
+    final controller = VapController();
+    controller.attach(0);
+    fakePlatform.disposeError = PlatformException(
+      code: 'not-found',
+      message: 'No VapView found for viewId=0',
+    );
+
+    await controller.onViewDisposed();
+
+    expect(controller.viewId, isNull);
+    await controller.dispose();
+  });
+
+  test('onViewDisposed rethrows non not-found dispose errors', () async {
+    final controller = VapController();
+    controller.attach(9);
+    fakePlatform.disposeError = PlatformException(
+      code: 'permission-denied',
+      message: 'boom',
+    );
+
+    await expectLater(
+      controller.onViewDisposed(),
+      throwsA(isA<PlatformException>()),
+    );
+
+    await controller.dispose();
+  });
 }
 
 class FakeVapPlayerPlatform extends VapPlayerPlatform {
@@ -354,6 +385,7 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   ({int viewId, bool mute})? lastSetMute;
   ({int viewId, VapContentMode mode})? lastSetContentMode;
   ({int viewId, bool enabled})? lastSetFrameEventsEnabled;
+  Object? disposeError;
   int networkCacheSizeBytes = 0;
   int clearNetworkCacheCalls = 0;
   int? lastPruneNetworkCacheToBytes;
@@ -405,6 +437,9 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
 
   @override
   Future<void> dispose(int viewId) async {
+    if (disposeError != null) {
+      throw disposeError!;
+    }
     disposedViews.add(viewId);
     _resolvers.remove(viewId);
   }

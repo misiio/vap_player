@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:vap_player_platform_interface/vap_player_platform_interface.dart';
 
 class VapController {
@@ -81,7 +82,13 @@ class VapController {
     _viewId = null;
     if (currentViewId != null) {
       _platform.setImageResolver(currentViewId, null);
-      await _platform.dispose(currentViewId);
+      try {
+        await _platform.dispose(currentViewId);
+      } catch (error) {
+        if (!_isViewAlreadyDisposedError(error, currentViewId)) {
+          rethrow;
+        }
+      }
     }
   }
 
@@ -341,6 +348,20 @@ class VapController {
     if (pending != null && !pending.completer.isCompleted) {
       pending.completer.completeError(error);
     }
+  }
+
+  bool _isViewAlreadyDisposedError(Object error, int viewId) {
+    if (error is PlatformException) {
+      if (error.code == 'not-found') {
+        return true;
+      }
+      final String? message = error.message;
+      if (message != null &&
+          message.contains('No VapView found for viewId=$viewId')) {
+        return true;
+      }
+    }
+    return error.toString().contains('No VapView found for viewId=$viewId');
   }
 }
 
