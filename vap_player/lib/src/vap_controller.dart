@@ -72,16 +72,21 @@ class VapController {
     _flushPendingPlay(viewId);
   }
 
+  void onViewDetached() {
+    _detachView(
+      pendingPlayError: StateError(
+        'Pending play request was cancelled because the controller was detached from the view.',
+      ),
+    );
+  }
+
   Future<void> onViewDisposed() async {
-    _cancelPendingPlay(
-      StateError(
+    final int? currentViewId = _detachView(
+      pendingPlayError: StateError(
         'Pending play request was cancelled because the view was disposed.',
       ),
     );
-    final int? currentViewId = _viewId;
-    _viewId = null;
     if (currentViewId != null) {
-      _platform.setImageResolver(currentViewId, null);
       try {
         await _platform.dispose(currentViewId);
       } catch (error) {
@@ -90,6 +95,16 @@ class VapController {
         }
       }
     }
+  }
+
+  int? _detachView({required Object pendingPlayError}) {
+    _cancelPendingPlay(pendingPlayError);
+    final int? currentViewId = _viewId;
+    _viewId = null;
+    if (currentViewId != null) {
+      _platform.setImageResolver(currentViewId, null);
+    }
+    return currentViewId;
   }
 
   void setImageResolver(VapImageResolver? resolver) {

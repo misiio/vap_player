@@ -24,11 +24,30 @@ class VapView extends StatefulWidget {
 }
 
 class _VapViewState extends State<VapView> {
-  bool _viewCreated = false;
+  int? _platformViewId;
+
+  @override
+  void didUpdateWidget(covariant VapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (identical(oldWidget.controller, widget.controller)) {
+      return;
+    }
+
+    final int? viewId = _platformViewId;
+    if (viewId == null) {
+      return;
+    }
+
+    handoffVapViewController(
+      oldController: oldWidget.controller,
+      newController: widget.controller,
+      viewId: viewId,
+    );
+  }
 
   @override
   void dispose() {
-    if (_viewCreated) {
+    if (_platformViewId != null) {
       unawaited(widget.controller.onViewDisposed());
     }
     super.dispose();
@@ -58,7 +77,26 @@ class _VapViewState extends State<VapView> {
   }
 
   void _onPlatformViewCreated(int viewId) {
-    _viewCreated = true;
+    _platformViewId = viewId;
     widget.controller.attach(viewId);
+  }
+}
+
+@visibleForTesting
+void handoffVapViewController({
+  required VapController oldController,
+  required VapController newController,
+  required int viewId,
+}) {
+  oldController.onViewDetached();
+  try {
+    newController.attach(viewId);
+  } catch (_) {
+    try {
+      oldController.attach(viewId);
+    } catch (_) {
+      // Best-effort rollback only.
+    }
+    rethrow;
   }
 }

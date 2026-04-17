@@ -339,6 +339,40 @@ void main() {
     await controller.dispose();
   });
 
+  test('onViewDetached detaches without disposing platform view', () async {
+    final controller = VapController();
+    controller.attach(88);
+    controller.setImageResolver((VapImageResolveRequest request) async {
+      return Uint8List.fromList(<int>[1, 2, 3]);
+    });
+
+    controller.onViewDetached();
+
+    expect(controller.viewId, isNull);
+    expect(fakePlatform.disposedViews, isEmpty);
+    expect(fakePlatform.hasResolverForView(88), false);
+    await controller.dispose();
+  });
+
+  test('onViewDetached cancels pending autoplay request', () async {
+    final controller = VapController(autoPlay: true);
+    final Future<void> playFuture = controller.playFile('/tmp/detached.mp4');
+
+    controller.onViewDetached();
+
+    await expectLater(
+      playFuture,
+      throwsA(
+        isA<StateError>().having(
+          (StateError error) => error.message,
+          'message',
+          contains('detached'),
+        ),
+      ),
+    );
+    await controller.dispose();
+  });
+
   test('onViewDisposed ignores not-found dispose race', () async {
     final controller = VapController();
     controller.attach(0);
