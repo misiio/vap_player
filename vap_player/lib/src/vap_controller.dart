@@ -44,6 +44,7 @@ class VapController {
   _PlayParams? _lastPlayParams;
   bool _isPaused = false;
   bool _disposed = false;
+  Future<void>? _disposeFuture;
 
   Stream<VapPlaybackEvent> get playbackEvents =>
       _playbackEventsController.stream;
@@ -274,7 +275,18 @@ class VapController {
     return _platform.setFrameEventsEnabled(_requireViewId(), enabled);
   }
 
-  Future<void> dispose() async {
+  Future<void> dispose() {
+    final Future<void>? inFlightDispose = _disposeFuture;
+    if (inFlightDispose != null) {
+      return inFlightDispose;
+    }
+
+    final Future<void> disposeFuture = _disposeInternal();
+    _disposeFuture = disposeFuture;
+    return disposeFuture;
+  }
+
+  Future<void> _disposeInternal() async {
     if (_disposed) {
       return;
     }
@@ -284,11 +296,28 @@ class VapController {
         'Pending play request was cancelled because controller was disposed.',
       ),
     );
-    await onViewDisposed();
-    await _playbackSubscription.cancel();
-    await _clickSubscription.cancel();
-    await _playbackEventsController.close();
-    await _clickEventsController.close();
+
+    Object? firstError;
+    StackTrace? firstStackTrace;
+
+    Future<void> runDisposeStep(Future<void> Function() step) async {
+      try {
+        await step();
+      } catch (error, stackTrace) {
+        firstError ??= error;
+        firstStackTrace ??= stackTrace;
+      }
+    }
+
+    await runDisposeStep(onViewDisposed);
+    await runDisposeStep(_playbackSubscription.cancel);
+    await runDisposeStep(_clickSubscription.cancel);
+    await runDisposeStep(_playbackEventsController.close);
+    await runDisposeStep(_clickEventsController.close);
+
+    if (firstError != null) {
+      Error.throwWithStackTrace(firstError!, firstStackTrace!);
+    }
   }
 
   int _requireViewId() {

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_vap_player/src/vap_controller.dart';
 import 'package:flutter_vap_player/src/vap_view.dart';
@@ -108,6 +109,36 @@ void main() {
       await newController.dispose();
     },
   );
+
+  test(
+    'disposeVapViewControllerSafely reports async disposal errors',
+    () async {
+      final controller = VapController(platform: fakePlatform);
+      controller.attach(91);
+      fakePlatform.disposeError = StateError('onViewDisposed failed');
+      final FlutterExceptionHandler? previousOnError = FlutterError.onError;
+      FlutterErrorDetails? reportedError;
+      FlutterError.onError = (FlutterErrorDetails details) {
+        reportedError = details;
+      };
+
+      try {
+        disposeVapViewControllerSafely(controller);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        expect(fakePlatform.disposeCalls, <int>[91]);
+        expect(reportedError, isNotNull);
+        expect(
+          reportedError!.exception.toString(),
+          contains('onViewDisposed failed'),
+        );
+      } finally {
+        FlutterError.onError = previousOnError;
+      }
+
+      await controller.dispose();
+    },
+  );
 }
 
 class ThrowingAttachVapController extends VapController {
@@ -128,6 +159,7 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   final Map<int, VapImageResolver> _resolvers = <int, VapImageResolver>{};
 
   final List<int> disposeCalls = <int>[];
+  Object? disposeError;
 
   @override
   Stream<VapPlaybackEvent> get playbackEvents => _playbackController.stream;
@@ -164,6 +196,9 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   @override
   Future<void> dispose(int viewId) async {
     disposeCalls.add(viewId);
+    if (disposeError != null) {
+      throw disposeError!;
+    }
     _resolvers.remove(viewId);
   }
 

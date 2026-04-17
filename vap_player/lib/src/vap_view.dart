@@ -48,7 +48,7 @@ class _VapViewState extends State<VapView> {
   @override
   void dispose() {
     if (_platformViewId != null) {
-      unawaited(widget.controller.onViewDisposed());
+      disposeVapViewControllerSafely(widget.controller);
     }
     super.dispose();
   }
@@ -80,6 +80,25 @@ class _VapViewState extends State<VapView> {
     _platformViewId = viewId;
     widget.controller.attach(viewId);
   }
+}
+
+@visibleForTesting
+void disposeVapViewControllerSafely(VapController controller) {
+  unawaited(
+    controller.onViewDisposed().catchError((
+      Object error,
+      StackTrace stackTrace,
+    ) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'flutter_vap_player',
+          context: ErrorDescription('while disposing VapView controller'),
+        ),
+      );
+    }),
+  );
 }
 
 @visibleForTesting

@@ -402,6 +402,62 @@ void main() {
 
     await controller.dispose();
   });
+
+  test(
+    'dispose rethrows platform error after closing public streams',
+    () async {
+      final controller = VapController();
+      controller.attach(10);
+      fakePlatform.disposeError = PlatformException(
+        code: 'permission-denied',
+        message: 'boom',
+      );
+      final Completer<void> playbackDone = Completer<void>();
+      final Completer<void> clickDone = Completer<void>();
+
+      controller.playbackEvents.listen((_) {}, onDone: playbackDone.complete);
+      controller.clickEvents.listen((_) {}, onDone: clickDone.complete);
+
+      await expectLater(
+        controller.dispose(),
+        throwsA(
+          isA<PlatformException>().having(
+            (PlatformException error) => error.code,
+            'code',
+            'permission-denied',
+          ),
+        ),
+      );
+      await playbackDone.future;
+      await clickDone.future;
+    },
+  );
+
+  test(
+    'dispose reuses in-flight future and runs platform dispose once',
+    () async {
+      final controller = VapController();
+      controller.attach(11);
+      final Completer<void> blocker = Completer<void>();
+      fakePlatform.disposeBlocker = blocker;
+
+      final Future<void> firstDispose = controller.dispose();
+      final Future<void> secondDispose = controller.dispose();
+
+      expect(identical(firstDispose, secondDispose), true);
+      expect(fakePlatform.disposeCallCount, 1);
+
+      blocker.complete();
+      await firstDispose;
+
+      final Future<void> thirdDispose = controller.dispose();
+      expect(identical(firstDispose, thirdDispose), true);
+      await thirdDispose;
+
+      expect(fakePlatform.disposeCallCount, 1);
+      expect(fakePlatform.disposedViews.contains(11), true);
+    },
+  );
 }
 
 class FakeVapPlayerPlatform extends VapPlayerPlatform {
@@ -419,6 +475,8 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   ({int viewId, VapContentMode mode})? lastSetContentMode;
   ({int viewId, bool enabled})? lastSetFrameEventsEnabled;
   Object? disposeError;
+  int disposeCallCount = 0;
+  Completer<void>? disposeBlocker;
   int networkCacheSizeBytes = 0;
   int clearNetworkCacheCalls = 0;
   int? lastPruneNetworkCacheToBytes;
@@ -470,6 +528,11 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
 
   @override
   Future<void> dispose(int viewId) async {
+    disposeCallCount += 1;
+    final Completer<void>? blocker = disposeBlocker;
+    if (blocker != null) {
+      await blocker.future;
+    }
     if (disposeError != null) {
       throw disposeError!;
     }
