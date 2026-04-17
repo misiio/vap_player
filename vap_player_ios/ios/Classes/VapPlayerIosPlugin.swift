@@ -197,7 +197,7 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
         self.emitResourceClick(
           VapResourceClickEventMessage(
             viewId: self.viewId,
-            resourceId: nil,
+            resourceId: Self.fallbackResourceId(for: info?.contentTag),
             tag: info?.contentTag,
             x: rect.origin.x,
             y: rect.origin.y,
@@ -225,6 +225,7 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
     let repeatCount = Int(request.repeatCount ?? 0)
     setContentMode(request.contentMode ?? .scaleToFill)
     setMute(request.mute ?? false)
+    applyRequestedFpsHint(request.fps)
 
     switch request.sourceType ?? .file {
     case .file:
@@ -373,7 +374,7 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
 
   @objc(vapWrapview_contentForVapTag:resource:)
   func vapWrapview_content(forVapTag tag: String, resource info: QGVAPSourceInfo) -> String {
-    tagValues[tag] ?? tag
+    Self.resolveTextValue(for: tag, values: tagValues)
   }
 
   @objc(vapWrapView_loadVapImageWithURL:context:completion:)
@@ -385,7 +386,7 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
     let sourceInfo = context["resource"] as? QGVAPSourceInfo
     let request = VapImageResolveRequestMessage(
       viewId: viewId,
-      resourceId: "",
+      resourceId: Self.fallbackResourceId(for: sourceInfo?.contentTag),
       tag: sourceInfo?.contentTag,
       type: sourceInfo?.type.map { "\($0)" },
       loadType: sourceInfo?.loadType.map { "\($0)" },
@@ -649,6 +650,24 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
 
   private func emitResourceClick(_ event: VapResourceClickEventMessage) {
     eventApi.onResourceClick(event: event) { _ in }
+  }
+
+  static func fallbackResourceId(for tag: String?) -> String {
+    tag ?? ""
+  }
+
+  static func resolveTextValue(for tag: String, values: [String: String]) -> String {
+    values[tag] ?? tag
+  }
+
+  private func applyRequestedFpsHint(_ fps: Int64?) {
+    guard let fps, fps > 0 else {
+      return
+    }
+    // QGVAPWrapView exposes play APIs with repeat count but no fps parameter.
+    // The lower-level UIView fps APIs in Tencent VAP are deprecated, so this plugin
+    // keeps using the safe wrap-view path and currently treats requested fps as a hint.
+    _ = fps
   }
 
   private func sanitizeTagValues(_ input: [String?: String?]?) -> [String: String] {

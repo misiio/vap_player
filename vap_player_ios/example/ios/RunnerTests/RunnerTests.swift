@@ -44,4 +44,24 @@ class RunnerTests: XCTestCase {
 
     XCTAssertFalse(VapNetworkPolicy.hasIsoBmffSignature(fileURL: tempURL))
   }
+
+  func testFallbackResourceIdUsesTagWhenAvailable() {
+    XCTAssertEqual(VapPlayerPlatformView.fallbackResourceId(for: "[imgAvatar]"), "[imgAvatar]")
+  }
+
+  func testFallbackResourceIdReturnsEmptyWhenTagMissing() {
+    XCTAssertEqual(VapPlayerPlatformView.fallbackResourceId(for: nil), "")
+  }
+
+  func testResolveTextValueUsesMappedValueOrTagFallback() {
+    let tagValues = ["[textUser]": "Alice"]
+    XCTAssertEqual(
+      VapPlayerPlatformView.resolveTextValue(for: "[textUser]", values: tagValues),
+      "Alice"
+    )
+    XCTAssertEqual(
+      VapPlayerPlatformView.resolveTextValue(for: "[textMissing]", values: tagValues),
+      "[textMissing]"
+    )
+  }
 }

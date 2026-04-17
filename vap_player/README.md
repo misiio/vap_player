@@ -105,6 +105,9 @@ See `flutter_vap_player/example` for complete asset playback and VAPX demo flows
 
 - `VapSourceType.network` treats `source` as an absolute `http/https` URL.
 - For network sources, `assetPackage` is ignored.
+- Missing `tagValues` entries fall back to the original tag string on both Android and iOS.
+- `VapImageResolveRequest.resourceId` is platform-specific: Android forwards native `srcId`, while iOS falls back to the tag value when native `srcId` is unavailable in `QGVAPSourceInfo`.
+- `fps` in play requests is currently effective on Android. iOS uses `QGVAPWrapView` APIs (which do not expose fps override), so `fps` is treated as a best-effort hint and currently ignored.
 - Native network downloads are hardened with strict `2xx` checks, redirect limits (`3`), size caps, and MP4 signature validation before cache promotion.
 - `VapNetworkCache.setAutoEvictionMaxBytes()` controls both:
   1. cache auto-eviction target

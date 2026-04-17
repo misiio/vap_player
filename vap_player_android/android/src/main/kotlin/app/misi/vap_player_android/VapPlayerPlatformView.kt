@@ -25,6 +25,10 @@ import java.security.MessageDigest
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+internal fun resolveTextResourceValue(tagValues: Map<String, String>, tag: String): String {
+  return tagValues[tag] ?: tag
+}
+
 class VapPlayerPlatformView(
   private val context: Context,
   val viewId: Long,
@@ -98,7 +102,7 @@ class VapPlayerPlatformView(
     }
 
     override fun fetchText(resource: Resource, result: (String?) -> Unit) {
-      result(tagValues[resource.tag])
+      result(resolveTextResourceValue(tagValues, resource.tag))
     }
 
     override fun releaseResource(resources: List<Resource>) {
