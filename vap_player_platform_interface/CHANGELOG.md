@@ -1,5 +1,8 @@
 ## Unreleased
 
+## 0.2.0
+
+- Rename `VapPlaybackEventType.start` to `VapPlaybackEventType.started` to match emitted playback events.
 - Document stable network failure error-code mapping (`1001..1005`) used by platform implementations for `VapPlaybackEvent.errorCode`.
 
 ## 0.1.0

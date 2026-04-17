@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'vap_player_ios'
-  s.version          = '0.1.0'
+  s.version          = '0.2.0'
   s.summary          = 'iOS implementation of vap_player.'
   s.description      = <<-DESC
 iOS implementation of vap_player backed by QGVAPlayer.

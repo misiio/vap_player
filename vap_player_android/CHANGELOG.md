@@ -1,7 +1,11 @@
 ## Unreleased
 
+## 0.2.0
+
 - Add hardened Android network download pipeline: strict `2xx` status validation, redirect cap (`3`), bounded transfer size, and MP4 signature validation before caching.
 - Add stable network failure error codes (`1001..1005`) for invalid URL, HTTP status, size exceeded, invalid media, and network I/O.
+- Align playback event emission with the platform interface `started` event contract.
+- Align text resource fallback behavior with iOS and add dedicated fallback coverage tests.
 - Add policy unit tests for min download floor, URL sanitization, and MP4 signature validation.
 
 ## 0.1.1

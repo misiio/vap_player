@@ -1,6 +1,6 @@
 name: flutter_vap_player
 description: Flutter VAP player widget/controller API.
-version: 0.1.0
+version: 0.2.0
 homepage: https://github.com/misiio/vap_player
 repository: https://github.com/misiio/vap_player/tree/master/vap_player
 
@@ -11,9 +11,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  vap_player_platform_interface: ^0.1.0
-  vap_player_android: ^0.1.0
-  vap_player_ios: ^0.1.0
+  vap_player_platform_interface: ^0.2.0
+  vap_player_android: ^0.2.0
+  vap_player_ios: ^0.2.0
 
 dev_dependencies:
   flutter_test:
