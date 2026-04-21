@@ -34,8 +34,14 @@ enum VapNetworkPolicy {
       return false
     }
     defer { try? handle.close() }
+    let prefixBytes: Data?
+    if #available(iOS 13.4, *) {
+      prefixBytes = try? handle.read(upToCount: 12)
+    } else {
+      prefixBytes = handle.readData(ofLength: 12)
+    }
     guard
-      let bytes = try? handle.read(upToCount: 12),
+      let bytes = prefixBytes,
       bytes.count >= 12
     else {
       return false
