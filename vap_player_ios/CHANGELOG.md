@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 0.2.1
+
+- Add iOS 13.0 compatibility fallback for ISO BMFF signature reads by using `readData(ofLength:)` when `read(upToCount:)` is unavailable.
+- Fix example iOS build configuration by forcing `FLUTTER_APPLICATION_PATH` to resolve from `$(SRCROOT)/..` in xcconfig overrides.
+
 ## 0.2.0
 
 - Add hardened iOS network download pipeline using bounded `URLSession` download delegates with strict `2xx` validation, redirect cap (`3`), and max-size enforcement.
