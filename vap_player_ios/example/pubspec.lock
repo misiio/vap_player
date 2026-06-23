@@ -253,15 +253,14 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "0.2.0"
+    version: "1.0.0"
   vap_player_platform_interface:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: vap_player_platform_interface
-      sha256: "8ec92a2046ce612c3fd2bdcb5ff490c5e50b32512c4e3b88db59243301e8bfc9"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.2.0"
+      path: "../../vap_player_platform_interface"
+      relative: true
+    source: path
+    version: "1.0.0"
   vector_math:
     dependency: transitive
     description:

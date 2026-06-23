@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 1.0.0
+
+- Breaking: implement the v2 platform contract with play-scoped options and a single event callback.
+- Breaking: remove separate host calls for mute, content mode, frame events, and manual cache pruning.
+
 ## 0.2.0
 
 - Add hardened Android network download pipeline: strict `2xx` status validation, redirect cap (`3`), bounded transfer size, and MP4 signature validation before caching.

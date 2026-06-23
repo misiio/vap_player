@@ -1,5 +1,13 @@
 ## Unreleased
 
+## 1.0.0
+
+- Breaking: replace `VapView` with `VapPlayer`.
+- Breaking: replace `playAsset`, `playFile`, and `playNetwork` with one `play(VapSource, options:)` entrypoint.
+- Breaking: replace mutable playback setters and separate playback/click streams with play-scoped `VapPlaybackOptions` and one `events` stream.
+- Breaking: replace `VapContentMode`/`contentMode` with Flutter `BoxFit` via `VapPlaybackOptions.fit`.
+- Breaking: replace the network cache API with `info`, `setMaxBytes`, and `clear`.
+
 ## 0.2.0
 
 - Add `VapController.pause()` and `VapController.resume()` playback controls.

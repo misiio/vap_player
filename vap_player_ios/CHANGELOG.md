@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 1.0.0
+
+- Breaking: implement the v2 platform contract with play-scoped options and a single event callback.
+- Breaking: remove separate host calls for mute, content mode, frame events, and manual cache pruning.
+
 ## 0.2.1
 
 - Add iOS 13.0 compatibility fallback for ISO BMFF signature reads by using `readData(ofLength:)` when `read(upToCount:)` is unavailable.
