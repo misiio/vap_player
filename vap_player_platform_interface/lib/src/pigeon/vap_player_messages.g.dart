@@ -119,6 +119,11 @@ enum VapContentModeMessage {
   aspectFill,
 }
 
+enum VapEventKindMessage {
+  playback,
+  resourceClick,
+}
+
 enum VapPlaybackEventTypeMessage {
   configReady,
   started,
@@ -135,11 +140,10 @@ class VapPlayRequestMessage {
     this.sourceType,
     this.source,
     this.assetPackage,
-    this.repeatCount,
-    this.mute,
+    this.loop,
+    this.muted,
     this.contentMode,
-    this.fps,
-    this.frameEventsEnabled,
+    this.frameEvents,
     this.tagValues,
   });
 
@@ -151,15 +155,13 @@ class VapPlayRequestMessage {
 
   String? assetPackage;
 
-  int? repeatCount;
+  bool? loop;
 
-  bool? mute;
+  bool? muted;
 
   VapContentModeMessage? contentMode;
 
-  int? fps;
-
-  bool? frameEventsEnabled;
+  bool? frameEvents;
 
   Map<String?, String?>? tagValues;
 
@@ -169,11 +171,10 @@ class VapPlayRequestMessage {
       sourceType,
       source,
       assetPackage,
-      repeatCount,
-      mute,
+      loop,
+      muted,
       contentMode,
-      fps,
-      frameEventsEnabled,
+      frameEvents,
       tagValues,
     ];
   }
@@ -188,12 +189,11 @@ class VapPlayRequestMessage {
       sourceType: result[1] as VapSourceTypeMessage?,
       source: result[2] as String?,
       assetPackage: result[3] as String?,
-      repeatCount: result[4] as int?,
-      mute: result[5] as bool?,
+      loop: result[4] as bool?,
+      muted: result[5] as bool?,
       contentMode: result[6] as VapContentModeMessage?,
-      fps: result[7] as int?,
-      frameEventsEnabled: result[8] as bool?,
-      tagValues: (result[9] as Map<Object?, Object?>?)?.cast<String?, String?>(),
+      frameEvents: result[7] as bool?,
+      tagValues: (result[8] as Map<Object?, Object?>?)?.cast<String?, String?>(),
     );
   }
 
@@ -206,7 +206,7 @@ class VapPlayRequestMessage {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(viewId, other.viewId) && _deepEquals(sourceType, other.sourceType) && _deepEquals(source, other.source) && _deepEquals(assetPackage, other.assetPackage) && _deepEquals(repeatCount, other.repeatCount) && _deepEquals(mute, other.mute) && _deepEquals(contentMode, other.contentMode) && _deepEquals(fps, other.fps) && _deepEquals(frameEventsEnabled, other.frameEventsEnabled) && _deepEquals(tagValues, other.tagValues);
+    return _deepEquals(viewId, other.viewId) && _deepEquals(sourceType, other.sourceType) && _deepEquals(source, other.source) && _deepEquals(assetPackage, other.assetPackage) && _deepEquals(loop, other.loop) && _deepEquals(muted, other.muted) && _deepEquals(contentMode, other.contentMode) && _deepEquals(frameEvents, other.frameEvents) && _deepEquals(tagValues, other.tagValues);
   }
 
   @override
@@ -214,10 +214,11 @@ class VapPlayRequestMessage {
   int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
 }
 
-class VapPlaybackEventMessage {
-  VapPlaybackEventMessage({
+class VapEventMessage {
+  VapEventMessage({
     this.viewId,
-    this.type,
+    this.kind,
+    this.playbackType,
     this.frameIndex,
     this.width,
     this.height,
@@ -225,11 +226,19 @@ class VapPlaybackEventMessage {
     this.isMix,
     this.errorCode,
     this.errorMessage,
+    this.resourceId,
+    this.tag,
+    this.x,
+    this.y,
+    this.resourceWidth,
+    this.resourceHeight,
   });
 
   int? viewId;
 
-  VapPlaybackEventTypeMessage? type;
+  VapEventKindMessage? kind;
+
+  VapPlaybackEventTypeMessage? playbackType;
 
   int? frameIndex;
 
@@ -245,68 +254,6 @@ class VapPlaybackEventMessage {
 
   String? errorMessage;
 
-  List<Object?> _toList() {
-    return <Object?>[
-      viewId,
-      type,
-      frameIndex,
-      width,
-      height,
-      fps,
-      isMix,
-      errorCode,
-      errorMessage,
-    ];
-  }
-
-  Object encode() {
-    return _toList();  }
-
-  static VapPlaybackEventMessage decode(Object result) {
-    result as List<Object?>;
-    return VapPlaybackEventMessage(
-      viewId: result[0] as int?,
-      type: result[1] as VapPlaybackEventTypeMessage?,
-      frameIndex: result[2] as int?,
-      width: result[3] as int?,
-      height: result[4] as int?,
-      fps: result[5] as int?,
-      isMix: result[6] as bool?,
-      errorCode: result[7] as int?,
-      errorMessage: result[8] as String?,
-    );
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  bool operator ==(Object other) {
-    if (other is! VapPlaybackEventMessage || other.runtimeType != runtimeType) {
-      return false;
-    }
-    if (identical(this, other)) {
-      return true;
-    }
-    return _deepEquals(viewId, other.viewId) && _deepEquals(type, other.type) && _deepEquals(frameIndex, other.frameIndex) && _deepEquals(width, other.width) && _deepEquals(height, other.height) && _deepEquals(fps, other.fps) && _deepEquals(isMix, other.isMix) && _deepEquals(errorCode, other.errorCode) && _deepEquals(errorMessage, other.errorMessage);
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
-}
-
-class VapResourceClickEventMessage {
-  VapResourceClickEventMessage({
-    this.viewId,
-    this.resourceId,
-    this.tag,
-    this.x,
-    this.y,
-    this.width,
-    this.height,
-  });
-
-  int? viewId;
-
   String? resourceId;
 
   String? tag;
@@ -315,48 +262,66 @@ class VapResourceClickEventMessage {
 
   double? y;
 
-  double? width;
+  double? resourceWidth;
 
-  double? height;
+  double? resourceHeight;
 
   List<Object?> _toList() {
     return <Object?>[
       viewId,
+      kind,
+      playbackType,
+      frameIndex,
+      width,
+      height,
+      fps,
+      isMix,
+      errorCode,
+      errorMessage,
       resourceId,
       tag,
       x,
       y,
-      width,
-      height,
+      resourceWidth,
+      resourceHeight,
     ];
   }
 
   Object encode() {
     return _toList();  }
 
-  static VapResourceClickEventMessage decode(Object result) {
+  static VapEventMessage decode(Object result) {
     result as List<Object?>;
-    return VapResourceClickEventMessage(
+    return VapEventMessage(
       viewId: result[0] as int?,
-      resourceId: result[1] as String?,
-      tag: result[2] as String?,
-      x: result[3] as double?,
-      y: result[4] as double?,
-      width: result[5] as double?,
-      height: result[6] as double?,
+      kind: result[1] as VapEventKindMessage?,
+      playbackType: result[2] as VapPlaybackEventTypeMessage?,
+      frameIndex: result[3] as int?,
+      width: result[4] as int?,
+      height: result[5] as int?,
+      fps: result[6] as int?,
+      isMix: result[7] as bool?,
+      errorCode: result[8] as int?,
+      errorMessage: result[9] as String?,
+      resourceId: result[10] as String?,
+      tag: result[11] as String?,
+      x: result[12] as double?,
+      y: result[13] as double?,
+      resourceWidth: result[14] as double?,
+      resourceHeight: result[15] as double?,
     );
   }
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes
   bool operator ==(Object other) {
-    if (other is! VapResourceClickEventMessage || other.runtimeType != runtimeType) {
+    if (other is! VapEventMessage || other.runtimeType != runtimeType) {
       return false;
     }
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(viewId, other.viewId) && _deepEquals(resourceId, other.resourceId) && _deepEquals(tag, other.tag) && _deepEquals(x, other.x) && _deepEquals(y, other.y) && _deepEquals(width, other.width) && _deepEquals(height, other.height);
+    return _deepEquals(viewId, other.viewId) && _deepEquals(kind, other.kind) && _deepEquals(playbackType, other.playbackType) && _deepEquals(frameIndex, other.frameIndex) && _deepEquals(width, other.width) && _deepEquals(height, other.height) && _deepEquals(fps, other.fps) && _deepEquals(isMix, other.isMix) && _deepEquals(errorCode, other.errorCode) && _deepEquals(errorMessage, other.errorMessage) && _deepEquals(resourceId, other.resourceId) && _deepEquals(tag, other.tag) && _deepEquals(x, other.x) && _deepEquals(y, other.y) && _deepEquals(resourceWidth, other.resourceWidth) && _deepEquals(resourceHeight, other.resourceHeight);
   }
 
   @override
@@ -484,6 +449,51 @@ class VapImageResolveResultMessage {
   int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
 }
 
+class VapNetworkCacheInfoMessage {
+  VapNetworkCacheInfoMessage({
+    this.sizeBytes,
+    this.maxBytes,
+  });
+
+  int? sizeBytes;
+
+  int? maxBytes;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      sizeBytes,
+      maxBytes,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static VapNetworkCacheInfoMessage decode(Object result) {
+    result as List<Object?>;
+    return VapNetworkCacheInfoMessage(
+      sizeBytes: result[0] as int?,
+      maxBytes: result[1] as int?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! VapNetworkCacheInfoMessage || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(sizeBytes, other.sizeBytes) && _deepEquals(maxBytes, other.maxBytes);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+}
+
 
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
@@ -498,16 +508,16 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is VapContentModeMessage) {
       buffer.putUint8(130);
       writeValue(buffer, value.index);
-    }    else if (value is VapPlaybackEventTypeMessage) {
+    }    else if (value is VapEventKindMessage) {
       buffer.putUint8(131);
       writeValue(buffer, value.index);
-    }    else if (value is VapPlayRequestMessage) {
+    }    else if (value is VapPlaybackEventTypeMessage) {
       buffer.putUint8(132);
-      writeValue(buffer, value.encode());
-    }    else if (value is VapPlaybackEventMessage) {
+      writeValue(buffer, value.index);
+    }    else if (value is VapPlayRequestMessage) {
       buffer.putUint8(133);
       writeValue(buffer, value.encode());
-    }    else if (value is VapResourceClickEventMessage) {
+    }    else if (value is VapEventMessage) {
       buffer.putUint8(134);
       writeValue(buffer, value.encode());
     }    else if (value is VapImageResolveRequestMessage) {
@@ -515,6 +525,9 @@ class _PigeonCodec extends StandardMessageCodec {
       writeValue(buffer, value.encode());
     }    else if (value is VapImageResolveResultMessage) {
       buffer.putUint8(136);
+      writeValue(buffer, value.encode());
+    }    else if (value is VapNetworkCacheInfoMessage) {
+      buffer.putUint8(137);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -532,17 +545,20 @@ class _PigeonCodec extends StandardMessageCodec {
         return value == null ? null : VapContentModeMessage.values[value];
       case 131:
         final value = readValue(buffer) as int?;
-        return value == null ? null : VapPlaybackEventTypeMessage.values[value];
+        return value == null ? null : VapEventKindMessage.values[value];
       case 132:
-        return VapPlayRequestMessage.decode(readValue(buffer)!);
+        final value = readValue(buffer) as int?;
+        return value == null ? null : VapPlaybackEventTypeMessage.values[value];
       case 133:
-        return VapPlaybackEventMessage.decode(readValue(buffer)!);
+        return VapPlayRequestMessage.decode(readValue(buffer)!);
       case 134:
-        return VapResourceClickEventMessage.decode(readValue(buffer)!);
+        return VapEventMessage.decode(readValue(buffer)!);
       case 135:
         return VapImageResolveRequestMessage.decode(readValue(buffer)!);
       case 136:
         return VapImageResolveResultMessage.decode(readValue(buffer)!);
+      case 137:
+        return VapNetworkCacheInfoMessage.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -598,60 +614,6 @@ class VapHostApi {
     ;
   }
 
-  Future<void> setMute(int viewId, bool mute) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setMute$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[viewId, mute]);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  Future<void> setContentMode(int viewId, VapContentModeMessage mode) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setContentMode$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[viewId, mode]);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  Future<void> setFrameEventsEnabled(int viewId, bool enabled) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setFrameEventsEnabled$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[viewId, enabled]);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
   Future<void> dispose(int viewId) async {
     final pigeonVar_channelName = 'dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.dispose$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
@@ -670,8 +632,8 @@ class VapHostApi {
     ;
   }
 
-  Future<int> getNetworkCacheSizeBytes() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.getNetworkCacheSizeBytes$pigeonVar_messageChannelSuffix';
+  Future<VapNetworkCacheInfoMessage> getNetworkCacheInfo() async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.getNetworkCacheInfo$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -686,7 +648,7 @@ class VapHostApi {
         isNullValid: false,
     )
     ;
-    return pigeonVar_replyValue! as int;
+    return pigeonVar_replyValue! as VapNetworkCacheInfoMessage;
   }
 
   Future<void> clearNetworkCache() async {
@@ -707,45 +669,8 @@ class VapHostApi {
     ;
   }
 
-  Future<void> pruneNetworkCacheToBytes(int maxBytes) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.pruneNetworkCacheToBytes$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[maxBytes]);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  Future<int> getNetworkAutoEvictionMaxBytes() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.getNetworkAutoEvictionMaxBytes$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
-    return pigeonVar_replyValue! as int;
-  }
-
-  Future<void> setNetworkAutoEvictionMaxBytes(int maxBytes) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setNetworkAutoEvictionMaxBytes$pigeonVar_messageChannelSuffix';
+  Future<void> setNetworkCacheMaxBytes(int maxBytes) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setNetworkCacheMaxBytes$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -766,45 +691,22 @@ class VapHostApi {
 abstract class VapEventApi {
   static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
 
-  void onPlaybackEvent(VapPlaybackEventMessage event);
-
-  void onResourceClick(VapResourceClickEventMessage event);
+  void onEvent(VapEventMessage event);
 
   static void setUp(VapEventApi? api, {BinaryMessenger? binaryMessenger, String messageChannelSuffix = '',}) {
     messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.vap_player_platform_interface.VapEventApi.onPlaybackEvent$messageChannelSuffix', pigeonChannelCodec,
+          'dev.flutter.pigeon.vap_player_platform_interface.VapEventApi.onEvent$messageChannelSuffix', pigeonChannelCodec,
           binaryMessenger: binaryMessenger);
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
         pigeonVar_channel.setMessageHandler((Object? message) async {
           final List<Object?> args = message! as List<Object?>;
-          final VapPlaybackEventMessage arg_event = args[0]! as VapPlaybackEventMessage;
+          final VapEventMessage arg_event = args[0]! as VapEventMessage;
           try {
-            api.onPlaybackEvent(arg_event);
-            return wrapResponse(empty: true);
-          } on PlatformException catch (e) {
-            return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
-          }
-        });
-      }
-    }
-    {
-      final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.vap_player_platform_interface.VapEventApi.onResourceClick$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
-      if (api == null) {
-        pigeonVar_channel.setMessageHandler(null);
-      } else {
-        pigeonVar_channel.setMessageHandler((Object? message) async {
-          final List<Object?> args = message! as List<Object?>;
-          final VapResourceClickEventMessage arg_event = args[0]! as VapResourceClickEventMessage;
-          try {
-            api.onResourceClick(arg_event);
+            api.onEvent(arg_event);
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);

@@ -4,6 +4,8 @@ enum VapSourceTypeMessage { asset, file, network }
 
 enum VapContentModeMessage { scaleToFill, aspectFit, aspectFill }
 
+enum VapEventKindMessage { playback, resourceClick }
+
 enum VapPlaybackEventTypeMessage {
   configReady,
   started,
@@ -19,17 +21,17 @@ class VapPlayRequestMessage {
   VapSourceTypeMessage? sourceType;
   String? source;
   String? assetPackage;
-  int? repeatCount;
-  bool? mute;
+  bool? loop;
+  bool? muted;
   VapContentModeMessage? contentMode;
-  int? fps;
-  bool? frameEventsEnabled;
+  bool? frameEvents;
   Map<String?, String?>? tagValues;
 }
 
-class VapPlaybackEventMessage {
+class VapEventMessage {
   int? viewId;
-  VapPlaybackEventTypeMessage? type;
+  VapEventKindMessage? kind;
+  VapPlaybackEventTypeMessage? playbackType;
   int? frameIndex;
   int? width;
   int? height;
@@ -37,16 +39,12 @@ class VapPlaybackEventMessage {
   bool? isMix;
   int? errorCode;
   String? errorMessage;
-}
-
-class VapResourceClickEventMessage {
-  int? viewId;
   String? resourceId;
   String? tag;
   double? x;
   double? y;
-  double? width;
-  double? height;
+  double? resourceWidth;
+  double? resourceHeight;
 }
 
 class VapImageResolveRequestMessage {
@@ -65,38 +63,30 @@ class VapImageResolveResultMessage {
   String? errorMessage;
 }
 
+class VapNetworkCacheInfoMessage {
+  int? sizeBytes;
+  int? maxBytes;
+}
+
 @HostApi()
 abstract class VapHostApi {
   void play(VapPlayRequestMessage request);
 
   void stop(int viewId);
 
-  void setMute(int viewId, bool mute);
-
-  void setContentMode(int viewId, VapContentModeMessage mode);
-
-  void setFrameEventsEnabled(int viewId, bool enabled);
-
   void dispose(int viewId);
 
   @async
-  int getNetworkCacheSizeBytes();
+  VapNetworkCacheInfoMessage getNetworkCacheInfo();
 
   void clearNetworkCache();
 
-  void pruneNetworkCacheToBytes(int maxBytes);
-
-  @async
-  int getNetworkAutoEvictionMaxBytes();
-
-  void setNetworkAutoEvictionMaxBytes(int maxBytes);
+  void setNetworkCacheMaxBytes(int maxBytes);
 }
 
 @FlutterApi()
 abstract class VapEventApi {
-  void onPlaybackEvent(VapPlaybackEventMessage event);
-
-  void onResourceClick(VapResourceClickEventMessage event);
+  void onEvent(VapEventMessage event);
 }
 
 @FlutterApi()

@@ -1,10 +1,10 @@
 import 'dart:typed_data';
 
-enum VapSourceType { asset, file, network }
+enum VapPlatformSourceType { asset, file, network }
 
-enum VapContentMode { scaleToFill, aspectFit, aspectFill }
+enum VapPlatformContentMode { scaleToFill, aspectFit, aspectFill }
 
-enum VapPlaybackEventType {
+enum VapPlatformPlaybackEventType {
   configReady,
   started,
   frame,
@@ -14,9 +14,6 @@ enum VapPlaybackEventType {
   failed,
 }
 
-/// Stable network failure codes used by native implementations in
-/// [VapPlaybackEvent.errorCode] when [VapPlaybackEvent.type] is
-/// [VapPlaybackEventType.failed].
 abstract final class VapNetworkFailureCode {
   static const int invalidUrl = 1001;
   static const int httpStatus = 1002;
@@ -25,35 +22,39 @@ abstract final class VapNetworkFailureCode {
   static const int networkIo = 1005;
 }
 
-class VapPlayRequest {
-  const VapPlayRequest({
+class VapPlatformPlayRequest {
+  const VapPlatformPlayRequest({
     required this.viewId,
     required this.sourceType,
     required this.source,
     this.assetPackage,
-    this.repeatCount = 0,
-    this.mute = false,
-    this.contentMode = VapContentMode.scaleToFill,
-    this.fps,
-    this.frameEventsEnabled = false,
+    this.loop = false,
+    this.muted = false,
+    this.contentMode = VapPlatformContentMode.scaleToFill,
+    this.frameEvents = false,
     this.tagValues = const <String, String>{},
   });
 
   final int viewId;
-  final VapSourceType sourceType;
+  final VapPlatformSourceType sourceType;
   final String source;
   final String? assetPackage;
-  final int repeatCount;
-  final bool mute;
-  final VapContentMode contentMode;
-  final int? fps;
-  final bool frameEventsEnabled;
+  final bool loop;
+  final bool muted;
+  final VapPlatformContentMode contentMode;
+  final bool frameEvents;
   final Map<String, String> tagValues;
 }
 
-class VapPlaybackEvent {
-  const VapPlaybackEvent({
-    required this.viewId,
+sealed class VapPlatformEvent {
+  const VapPlatformEvent({required this.viewId});
+
+  final int viewId;
+}
+
+class VapPlatformPlaybackEvent extends VapPlatformEvent {
+  const VapPlatformPlaybackEvent({
+    required super.viewId,
     required this.type,
     this.frameIndex,
     this.width,
@@ -64,8 +65,7 @@ class VapPlaybackEvent {
     this.errorMessage,
   });
 
-  final int viewId;
-  final VapPlaybackEventType type;
+  final VapPlatformPlaybackEventType type;
   final int? frameIndex;
   final int? width;
   final int? height;
@@ -75,9 +75,9 @@ class VapPlaybackEvent {
   final String? errorMessage;
 }
 
-class VapResourceClickEvent {
-  const VapResourceClickEvent({
-    required this.viewId,
+class VapPlatformResourceClickEvent extends VapPlatformEvent {
+  const VapPlatformResourceClickEvent({
+    required super.viewId,
     this.resourceId,
     this.tag,
     this.x,
@@ -86,7 +86,6 @@ class VapResourceClickEvent {
     this.height,
   });
 
-  final int viewId;
   final String? resourceId;
   final String? tag;
   final double? x;
@@ -95,8 +94,8 @@ class VapResourceClickEvent {
   final double? height;
 }
 
-class VapImageResolveRequest {
-  const VapImageResolveRequest({
+class VapPlatformImageResolveRequest {
+  const VapPlatformImageResolveRequest({
     required this.viewId,
     required this.resourceId,
     required this.tag,
@@ -117,12 +116,15 @@ class VapImageResolveRequest {
   final String? url;
 }
 
-class VapImageResolveResult {
-  const VapImageResolveResult({this.imageBytes, this.errorMessage});
+class VapPlatformNetworkCacheInfo {
+  const VapPlatformNetworkCacheInfo({
+    required this.sizeBytes,
+    required this.maxBytes,
+  });
 
-  final Uint8List? imageBytes;
-  final String? errorMessage;
+  final int sizeBytes;
+  final int maxBytes;
 }
 
-typedef VapImageResolver =
-    Future<Uint8List?> Function(VapImageResolveRequest request);
+typedef VapPlatformImageResolver =
+    Future<Uint8List?> Function(VapPlatformImageResolveRequest request);

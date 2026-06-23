@@ -1,379 +1,212 @@
 import 'dart:async';
 
+import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_vap_player/flutter_vap_player.dart';
-import 'package:vap_player_platform_interface/vap_player_platform_interface.dart';
+import 'package:vap_player_platform_interface/vap_player_platform_interface.dart'
+    as platform;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late FakeVapPlayerPlatform fakePlatform;
-  final VapPlayerPlatform previousPlatform = VapPlayerPlatform.instance;
+  late platform.VapPlayerPlatform previousPlatform;
 
   setUp(() {
     fakePlatform = FakeVapPlayerPlatform();
-    VapPlayerPlatform.instance = fakePlatform;
+    previousPlatform = platform.VapPlayerPlatform.instance;
+    platform.VapPlayerPlatform.instance = fakePlatform;
   });
 
   tearDown(() {
-    VapPlayerPlatform.instance = previousPlatform;
+    platform.VapPlayerPlatform.instance = previousPlatform;
   });
 
-  test('controller play forwards request with attached view id', () async {
+  test('play forwards typed asset source and play-scoped options', () async {
     final controller = VapController();
     controller.attach(42);
 
-    await controller.playAsset(
-      'assets/demo.mp4',
-      repeatCount: 2,
-      mute: true,
-      contentMode: VapContentMode.aspectFill,
-      frameEventsEnabled: true,
-      tagValues: const <String, String>{'textUser': 'Alice'},
+    await controller.play(
+      const VapSource.asset('assets/demo.mp4', package: 'demo_package'),
+      options: VapPlaybackOptions(
+        loop: true,
+        muted: true,
+        fit: BoxFit.cover,
+        frameEvents: true,
+        tags: const <String, String>{'textUser': 'Alice'},
+        imageResolver: (_) async => Uint8List.fromList(<int>[1, 2, 3]),
+      ),
     );
 
     final request = fakePlatform.lastPlayRequest;
     expect(request, isNotNull);
     expect(request!.viewId, 42);
-    expect(request.sourceType, VapSourceType.asset);
+    expect(request.sourceType, platform.VapPlatformSourceType.asset);
     expect(request.source, 'assets/demo.mp4');
-    expect(request.repeatCount, 2);
-    expect(request.mute, true);
-    expect(request.contentMode, VapContentMode.aspectFill);
-    expect(request.frameEventsEnabled, true);
+    expect(request.assetPackage, 'demo_package');
+    expect(request.loop, true);
+    expect(request.muted, true);
+    expect(request.contentMode, platform.VapPlatformContentMode.aspectFill);
+    expect(request.frameEvents, true);
     expect(request.tagValues['textUser'], 'Alice');
+    expect(fakePlatform.hasResolverForView(42), true);
 
     await controller.dispose();
   });
 
-  test('controller loop=true maps omitted repeatCount to -1', () async {
-    final controller = VapController(looping: true);
-    controller.attach(45);
-
-    await controller.playFile('/tmp/loop.mp4');
-
-    final request = fakePlatform.lastPlayRequest;
-    expect(request, isNotNull);
-    expect(request!.repeatCount, -1);
-
-    await controller.dispose();
-  });
-
-  test('controller loop=false maps omitted repeatCount to 0', () async {
-    final controller = VapController(looping: false);
-    controller.attach(46);
-
-    await controller.playFile('/tmp/no-loop.mp4');
-
-    final request = fakePlatform.lastPlayRequest;
-    expect(request, isNotNull);
-    expect(request!.repeatCount, 0);
-
-    await controller.dispose();
-  });
-
-  test('explicit repeatCount overrides controller loop option', () async {
-    final controller = VapController(looping: true);
-    controller.attach(47);
-
-    await controller.playAsset('assets/override.mp4', repeatCount: 2);
-
-    final request = fakePlatform.lastPlayRequest;
-    expect(request, isNotNull);
-    expect(request!.repeatCount, 2);
-
-    await controller.dispose();
-  });
-
-  test('setIsLooping updates default repeatCount for later plays', () async {
-    final controller = VapController(looping: false);
-    controller.attach(48);
-
-    await controller.playFile('/tmp/first.mp4');
-    expect(fakePlatform.lastPlayRequest!.repeatCount, 0);
-
-    controller.setLooping(true);
-    await controller.playFile('/tmp/second.mp4');
-    expect(fakePlatform.lastPlayRequest!.repeatCount, -1);
-
-    controller.setLooping(false);
-    await controller.playFile('/tmp/third.mp4');
-    expect(fakePlatform.lastPlayRequest!.repeatCount, 0);
-
-    await controller.dispose();
-  });
-
-  test('controller playNetwork forwards network source request', () async {
+  test('play forwards file and network sources', () async {
     final controller = VapController();
     controller.attach(43);
 
-    await controller.playNetwork(
-      'https://cdn.example.com/anim/demo.mp4',
-      repeatCount: 1,
-      mute: true,
+    await controller.play(const VapSource.file('/tmp/demo.mp4'));
+    expect(
+      fakePlatform.lastPlayRequest!.sourceType,
+      platform.VapPlatformSourceType.file,
     );
+    expect(fakePlatform.lastPlayRequest!.source, '/tmp/demo.mp4');
 
-    final request = fakePlatform.lastPlayRequest;
-    expect(request, isNotNull);
-    expect(request!.viewId, 43);
-    expect(request.sourceType, VapSourceType.network);
-    expect(request.source, 'https://cdn.example.com/anim/demo.mp4');
-    expect(request.repeatCount, 1);
-    expect(request.mute, true);
+    await controller.play(
+      VapSource.network(Uri.parse('https://cdn.example.com/vap/demo.mp4')),
+    );
+    expect(
+      fakePlatform.lastPlayRequest!.sourceType,
+      platform.VapPlatformSourceType.network,
+    );
+    expect(
+      fakePlatform.lastPlayRequest!.source,
+      'https://cdn.example.com/vap/demo.mp4',
+    );
 
     await controller.dispose();
   });
 
-  test('controller playNetwork rejects invalid URL', () async {
+  test('network source rejects non-http absolute URLs', () {
+    expect(
+      () => VapSource.network(Uri.parse('/local/path.mp4')),
+      throwsArgumentError,
+    );
+    expect(
+      () => VapSource.network(Uri.parse('ftp://example.com/demo.mp4')),
+      throwsArgumentError,
+    );
+  });
+
+  test('play rejects BoxFit values without native equivalents', () async {
     final controller = VapController();
     controller.attach(44);
 
     expect(
-      () => controller.playNetwork('/local/path.mp4'),
-      throwsA(isA<StateError>()),
+      () => controller.play(
+        const VapSource.file('/tmp/demo.mp4'),
+        options: const VapPlaybackOptions(fit: BoxFit.scaleDown),
+      ),
+      throwsArgumentError,
     );
 
     await controller.dispose();
   });
 
-  test('controller filters events by attached view id', () async {
+  test('events stream filters by view and maps playback and clicks', () async {
     final controller = VapController();
     controller.attach(7);
 
-    final List<VapPlaybackEvent> events = <VapPlaybackEvent>[];
-    final sub = controller.playbackEvents.listen(events.add);
+    final List<VapEvent> events = <VapEvent>[];
+    final sub = controller.events.listen(events.add);
 
-    fakePlatform.emitPlayback(
-      const VapPlaybackEvent(viewId: 8, type: VapPlaybackEventType.started),
+    fakePlatform.emit(
+      const platform.VapPlatformPlaybackEvent(
+        viewId: 8,
+        type: platform.VapPlatformPlaybackEventType.started,
+      ),
     );
-    fakePlatform.emitPlayback(
-      const VapPlaybackEvent(viewId: 7, type: VapPlaybackEventType.started),
+    fakePlatform.emit(
+      const platform.VapPlatformPlaybackEvent(
+        viewId: 7,
+        type: platform.VapPlatformPlaybackEventType.started,
+      ),
+    );
+    fakePlatform.emit(
+      const platform.VapPlatformResourceClickEvent(viewId: 7, tag: 'mine'),
     );
 
     await Future<void>.delayed(const Duration(milliseconds: 10));
 
-    expect(events.length, 1);
-    expect(events.single.viewId, 7);
+    expect(events, hasLength(2));
+    expect(events.first, isA<VapPlaybackEvent>());
+    expect(
+      (events.first as VapPlaybackEvent).type,
+      VapPlaybackEventType.started,
+    );
+    expect(events.last, isA<VapResourceClickEvent>());
+    expect((events.last as VapResourceClickEvent).tag, 'mine');
 
     await sub.cancel();
     await controller.dispose();
   });
 
-  test('setImageResolver registers resolver for current view', () async {
+  test('play before attach queues latest request by default', () async {
+    final controller = VapController();
+
+    final Future<void> firstFuture = controller.play(
+      const VapSource.file('/tmp/first.mp4'),
+    );
+    final Future<void> secondFuture = controller.play(
+      const VapSource.file('/tmp/second.mp4'),
+    );
+
+    await expectLater(firstFuture, throwsA(isA<StateError>()));
+
+    controller.attach(101);
+    await secondFuture;
+
+    expect(fakePlatform.playRequests, hasLength(1));
+    expect(fakePlatform.playRequests.single.viewId, 101);
+    expect(fakePlatform.playRequests.single.source, '/tmp/second.mp4');
+
+    await controller.dispose();
+  });
+
+  test('new play replaces play-scoped image resolver', () async {
     final controller = VapController();
     controller.attach(11);
 
-    controller.setImageResolver((VapImageResolveRequest request) async {
-      return Uint8List.fromList(<int>[1, 2, 3]);
-    });
-
+    await controller.play(
+      const VapSource.file('/tmp/first.mp4'),
+      options: VapPlaybackOptions(
+        imageResolver: (_) async => Uint8List.fromList(<int>[1]),
+      ),
+    );
     expect(fakePlatform.hasResolverForView(11), true);
 
-    await controller.dispose();
+    await controller.play(const VapSource.file('/tmp/second.mp4'));
     expect(fakePlatform.hasResolverForView(11), false);
+
+    await controller.dispose();
   });
 
-  test('controller throws when play is called before attach', () async {
+  test('stop cancels pending play before attachment', () async {
     final controller = VapController();
-    expect(
-      () => controller.playFile('/tmp/demo.mp4'),
-      throwsA(isA<StateError>()),
+    final Future<void> playFuture = controller.play(
+      const VapSource.file('/tmp/pending.mp4'),
     );
+
+    expect(() => controller.stop(), throwsA(isA<StateError>()));
+    await expectLater(playFuture, throwsA(isA<StateError>()));
     await controller.dispose();
   });
 
-  test(
-    'controller autoPlay queues play before attach and flushes on attach',
-    () async {
-      final controller = VapController(autoPlay: true);
-      final Future<void> playFuture = controller.playAsset('assets/queued.mp4');
-
-      expect(fakePlatform.playRequests, isEmpty);
-
-      controller.attach(101);
-      await playFuture;
-
-      expect(fakePlatform.playRequests.length, 1);
-      expect(fakePlatform.playRequests.single.viewId, 101);
-      expect(fakePlatform.playRequests.single.source, 'assets/queued.mp4');
-
-      await controller.dispose();
-    },
-  );
-
-  test(
-    'controller autoPlay keeps only last pending play before attach',
-    () async {
-      final controller = VapController(autoPlay: true);
-
-      final Future<void> firstFuture = controller.playFile('/tmp/first.mp4');
-      final Future<void> secondFuture = controller.playFile('/tmp/second.mp4');
-
-      await expectLater(firstFuture, throwsA(isA<StateError>()));
-
-      controller.attach(102);
-      await secondFuture;
-
-      expect(fakePlatform.playRequests.length, 1);
-      expect(fakePlatform.playRequests.single.viewId, 102);
-      expect(fakePlatform.playRequests.single.source, '/tmp/second.mp4');
-
-      await controller.dispose();
-    },
-  );
-
-  test('controller autoPlay cancels pending play on dispose', () async {
-    final controller = VapController(autoPlay: true);
-    final Future<void> playFuture = controller.playFile('/tmp/pending.mp4');
-    final Future<void> expectError = expectLater(
-      playFuture,
-      throwsA(isA<StateError>()),
-    );
-
-    await controller.dispose();
-
-    await expectError;
-    expect(fakePlatform.playRequests, isEmpty);
-  });
-
-  test(
-    'controller allows reattach to same view but rejects different view',
-    () async {
-      final controller = VapController();
-      controller.attach(21);
-      controller.attach(21);
-      expect(() => controller.attach(22), throwsA(isA<StateError>()));
-      await controller.dispose();
-    },
-  );
-
-  test(
-    'controller forwards stop/mute/contentMode/frame-events commands',
-    () async {
-      final controller = VapController();
-      controller.attach(51);
-
-      await controller.stop();
-      await controller.setMute(true);
-      await controller.setContentMode(VapContentMode.aspectFit);
-      await controller.setFrameEventsEnabled(true);
-
-      expect(fakePlatform.lastStopViewId, 51);
-      expect(fakePlatform.lastSetMute, (viewId: 51, mute: true));
-      expect(fakePlatform.lastSetContentMode, (
-        viewId: 51,
-        mode: VapContentMode.aspectFit,
-      ));
-      expect(fakePlatform.lastSetFrameEventsEnabled, (
-        viewId: 51,
-        enabled: true,
-      ));
-
-      await controller.dispose();
-    },
-  );
-
-  test('controller pause stops and resume replays last request', () async {
-    final controller = VapController();
-    controller.attach(52);
-
-    await controller.playFile(
-      '/tmp/pause-resume.mp4',
-      repeatCount: 3,
-      mute: true,
-      contentMode: VapContentMode.aspectFit,
-      frameEventsEnabled: true,
-      tagValues: const <String, String>{'textUser': 'Bob'},
-    );
-    expect(fakePlatform.playRequests.length, 1);
-
-    await controller.pause();
-    expect(fakePlatform.lastStopViewId, 52);
-
-    await controller.resume();
-    expect(fakePlatform.playRequests.length, 2);
-
-    final resumedRequest = fakePlatform.playRequests.last;
-    expect(resumedRequest.viewId, 52);
-    expect(resumedRequest.sourceType, VapSourceType.file);
-    expect(resumedRequest.source, '/tmp/pause-resume.mp4');
-    expect(resumedRequest.repeatCount, 3);
-    expect(resumedRequest.mute, true);
-    expect(resumedRequest.contentMode, VapContentMode.aspectFit);
-    expect(resumedRequest.frameEventsEnabled, true);
-    expect(resumedRequest.tagValues['textUser'], 'Bob');
-
-    await controller.dispose();
-  });
-
-  test('controller filters click events by attached view id', () async {
-    final controller = VapController();
-    controller.attach(9);
-
-    final List<VapResourceClickEvent> events = <VapResourceClickEvent>[];
-    final sub = controller.clickEvents.listen(events.add);
-
-    fakePlatform.emitClick(
-      const VapResourceClickEvent(viewId: 10, tag: 'other'),
-    );
-    fakePlatform.emitClick(const VapResourceClickEvent(viewId: 9, tag: 'mine'));
-
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-
-    expect(events.length, 1);
-    expect(events.single.tag, 'mine');
-
-    await sub.cancel();
-    await controller.dispose();
-  });
-
-  test('onViewDisposed calls platform dispose and detaches view', () async {
+  test('view disposal calls platform dispose and detaches', () async {
     final controller = VapController();
     controller.attach(77);
 
     await controller.onViewDisposed();
 
-    expect(fakePlatform.disposedViews.contains(77), true);
-    expect(controller.viewId, isNull);
+    expect(fakePlatform.disposedViews, contains(77));
     await controller.dispose();
   });
 
-  test('onViewDetached detaches without disposing platform view', () async {
-    final controller = VapController();
-    controller.attach(88);
-    controller.setImageResolver((VapImageResolveRequest request) async {
-      return Uint8List.fromList(<int>[1, 2, 3]);
-    });
-
-    controller.onViewDetached();
-
-    expect(controller.viewId, isNull);
-    expect(fakePlatform.disposedViews, isEmpty);
-    expect(fakePlatform.hasResolverForView(88), false);
-    await controller.dispose();
-  });
-
-  test('onViewDetached cancels pending autoplay request', () async {
-    final controller = VapController(autoPlay: true);
-    final Future<void> playFuture = controller.playFile('/tmp/detached.mp4');
-
-    controller.onViewDetached();
-
-    await expectLater(
-      playFuture,
-      throwsA(
-        isA<StateError>().having(
-          (StateError error) => error.message,
-          'message',
-          contains('detached'),
-        ),
-      ),
-    );
-    await controller.dispose();
-  });
-
-  test('onViewDisposed ignores not-found dispose race', () async {
+  test('view disposal ignores native not-found races', () async {
     final controller = VapController();
     controller.attach(0);
     fakePlatform.disposeError = PlatformException(
@@ -382,115 +215,35 @@ void main() {
     );
 
     await controller.onViewDisposed();
-
-    expect(controller.viewId, isNull);
     await controller.dispose();
   });
-
-  test('onViewDisposed rethrows non not-found dispose errors', () async {
-    final controller = VapController();
-    controller.attach(9);
-    fakePlatform.disposeError = PlatformException(
-      code: 'permission-denied',
-      message: 'boom',
-    );
-
-    await expectLater(
-      controller.onViewDisposed(),
-      throwsA(isA<PlatformException>()),
-    );
-
-    await controller.dispose();
-  });
-
-  test(
-    'dispose rethrows platform error after closing public streams',
-    () async {
-      final controller = VapController();
-      controller.attach(10);
-      fakePlatform.disposeError = PlatformException(
-        code: 'permission-denied',
-        message: 'boom',
-      );
-      final Completer<void> playbackDone = Completer<void>();
-      final Completer<void> clickDone = Completer<void>();
-
-      controller.playbackEvents.listen((_) {}, onDone: playbackDone.complete);
-      controller.clickEvents.listen((_) {}, onDone: clickDone.complete);
-
-      await expectLater(
-        controller.dispose(),
-        throwsA(
-          isA<PlatformException>().having(
-            (PlatformException error) => error.code,
-            'code',
-            'permission-denied',
-          ),
-        ),
-      );
-      await playbackDone.future;
-      await clickDone.future;
-    },
-  );
-
-  test(
-    'dispose reuses in-flight future and runs platform dispose once',
-    () async {
-      final controller = VapController();
-      controller.attach(11);
-      final Completer<void> blocker = Completer<void>();
-      fakePlatform.disposeBlocker = blocker;
-
-      final Future<void> firstDispose = controller.dispose();
-      final Future<void> secondDispose = controller.dispose();
-
-      expect(identical(firstDispose, secondDispose), true);
-      expect(fakePlatform.disposeCallCount, 1);
-
-      blocker.complete();
-      await firstDispose;
-
-      final Future<void> thirdDispose = controller.dispose();
-      expect(identical(firstDispose, thirdDispose), true);
-      await thirdDispose;
-
-      expect(fakePlatform.disposeCallCount, 1);
-      expect(fakePlatform.disposedViews.contains(11), true);
-    },
-  );
 }
 
-class FakeVapPlayerPlatform extends VapPlayerPlatform {
-  final StreamController<VapPlaybackEvent> _playbackController =
-      StreamController<VapPlaybackEvent>.broadcast();
-  final StreamController<VapResourceClickEvent> _clickController =
-      StreamController<VapResourceClickEvent>.broadcast();
-  final Map<int, VapImageResolver> _resolvers = <int, VapImageResolver>{};
+class FakeVapPlayerPlatform extends platform.VapPlayerPlatform {
+  final StreamController<platform.VapPlatformEvent> _eventsController =
+      StreamController<platform.VapPlatformEvent>.broadcast();
+  final Map<int, platform.VapPlatformImageResolver> _resolvers =
+      <int, platform.VapPlatformImageResolver>{};
 
-  VapPlayRequest? lastPlayRequest;
-  final List<VapPlayRequest> playRequests = <VapPlayRequest>[];
+  platform.VapPlatformPlayRequest? lastPlayRequest;
+  final List<platform.VapPlatformPlayRequest> playRequests =
+      <platform.VapPlatformPlayRequest>[];
   final Set<int> disposedViews = <int>{};
   int? lastStopViewId;
-  ({int viewId, bool mute})? lastSetMute;
-  ({int viewId, VapContentMode mode})? lastSetContentMode;
-  ({int viewId, bool enabled})? lastSetFrameEventsEnabled;
   Object? disposeError;
-  int disposeCallCount = 0;
-  Completer<void>? disposeBlocker;
-  int networkCacheSizeBytes = 0;
+  platform.VapPlatformNetworkCacheInfo cacheInfo =
+      const platform.VapPlatformNetworkCacheInfo(sizeBytes: 0, maxBytes: 0);
   int clearNetworkCacheCalls = 0;
-  int? lastPruneNetworkCacheToBytes;
-  int autoEvictionMaxBytes = 0;
-  int? lastSetAutoEvictionMaxBytes;
+  int? lastSetNetworkCacheMaxBytes;
 
   @override
-  Stream<VapPlaybackEvent> get playbackEvents => _playbackController.stream;
+  Stream<platform.VapPlatformEvent> get events => _eventsController.stream;
 
   @override
-  Stream<VapResourceClickEvent> get clickEvents => _clickController.stream;
-
-  @override
-  void setImageResolver(int viewId, VapImageResolver? resolver) {
+  void setImageResolver(
+    int viewId,
+    platform.VapPlatformImageResolver? resolver,
+  ) {
     if (resolver == null) {
       _resolvers.remove(viewId);
       return;
@@ -501,7 +254,7 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   bool hasResolverForView(int viewId) => _resolvers.containsKey(viewId);
 
   @override
-  Future<void> play(VapPlayRequest request) async {
+  Future<void> play(platform.VapPlatformPlayRequest request) async {
     lastPlayRequest = request;
     playRequests.add(request);
   }
@@ -512,27 +265,7 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   }
 
   @override
-  Future<void> setMute(int viewId, bool mute) async {
-    lastSetMute = (viewId: viewId, mute: mute);
-  }
-
-  @override
-  Future<void> setContentMode(int viewId, VapContentMode mode) async {
-    lastSetContentMode = (viewId: viewId, mode: mode);
-  }
-
-  @override
-  Future<void> setFrameEventsEnabled(int viewId, bool enabled) async {
-    lastSetFrameEventsEnabled = (viewId: viewId, enabled: enabled);
-  }
-
-  @override
   Future<void> dispose(int viewId) async {
-    disposeCallCount += 1;
-    final Completer<void>? blocker = disposeBlocker;
-    if (blocker != null) {
-      await blocker.future;
-    }
     if (disposeError != null) {
       throw disposeError!;
     }
@@ -541,8 +274,8 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   }
 
   @override
-  Future<int> getNetworkCacheSizeBytes() async {
-    return networkCacheSizeBytes;
+  Future<platform.VapPlatformNetworkCacheInfo> getNetworkCacheInfo() async {
+    return cacheInfo;
   }
 
   @override
@@ -551,25 +284,11 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   }
 
   @override
-  Future<void> pruneNetworkCacheToBytes(int maxBytes) async {
-    lastPruneNetworkCacheToBytes = maxBytes;
+  Future<void> setNetworkCacheMaxBytes(int maxBytes) async {
+    lastSetNetworkCacheMaxBytes = maxBytes;
   }
 
-  @override
-  Future<int> getNetworkAutoEvictionMaxBytes() async {
-    return autoEvictionMaxBytes;
-  }
-
-  @override
-  Future<void> setNetworkAutoEvictionMaxBytes(int maxBytes) async {
-    lastSetAutoEvictionMaxBytes = maxBytes;
-  }
-
-  void emitPlayback(VapPlaybackEvent event) {
-    _playbackController.add(event);
-  }
-
-  void emitClick(VapResourceClickEvent event) {
-    _clickController.add(event);
+  void emit(platform.VapPlatformEvent event) {
+    _eventsController.add(event);
   }
 }

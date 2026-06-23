@@ -13,15 +13,15 @@ void main() {
     final platform = PigeonVapPlayerPlatform(hostApi: fakeHost);
 
     await platform.play(
-      const VapPlayRequest(
+      const VapPlatformPlayRequest(
         viewId: 5,
-        sourceType: VapSourceType.asset,
+        sourceType: VapPlatformSourceType.asset,
         source: 'assets/vap.mp4',
-        repeatCount: -1,
-        mute: true,
-        contentMode: VapContentMode.aspectFit,
-        fps: 30,
-        frameEventsEnabled: true,
+        assetPackage: 'demo',
+        loop: true,
+        muted: true,
+        contentMode: VapPlatformContentMode.aspectFit,
+        frameEvents: true,
         tagValues: <String, String>{'[textUser]': 'Alice'},
       ),
     );
@@ -31,11 +31,11 @@ void main() {
     expect(message!.viewId, 5);
     expect(message.sourceType, VapSourceTypeMessage.asset);
     expect(message.source, 'assets/vap.mp4');
-    expect(message.repeatCount, -1);
-    expect(message.mute, true);
+    expect(message.assetPackage, 'demo');
+    expect(message.loop, true);
+    expect(message.muted, true);
     expect(message.contentMode, VapContentModeMessage.aspectFit);
-    expect(message.fps, 30);
-    expect(message.frameEventsEnabled, true);
+    expect(message.frameEvents, true);
     expect(message.tagValues?['[textUser]'], 'Alice');
   });
 
@@ -44,9 +44,9 @@ void main() {
     final platform = PigeonVapPlayerPlatform(hostApi: fakeHost);
 
     await platform.play(
-      const VapPlayRequest(
+      const VapPlatformPlayRequest(
         viewId: 9,
-        sourceType: VapSourceType.network,
+        sourceType: VapPlatformSourceType.network,
         source: 'https://cdn.example.com/vap/net.mp4',
       ),
     );
@@ -70,8 +70,10 @@ void main() {
 
   test('resolveImage uses resolver and returns bytes', () async {
     final platform = PigeonVapPlayerPlatform(hostApi: _FakeHostApi());
-    VapImageResolveRequest? capturedRequest;
-    platform.setImageResolver(7, (VapImageResolveRequest request) async {
+    VapPlatformImageResolveRequest? capturedRequest;
+    platform.setImageResolver(7, (
+      VapPlatformImageResolveRequest request,
+    ) async {
       capturedRequest = request;
       return Uint8List.fromList(<int>[9, 8, 7]);
     });
@@ -100,7 +102,9 @@ void main() {
 
   test('resolveImage captures resolver exceptions as errorMessage', () async {
     final platform = PigeonVapPlayerPlatform(hostApi: _FakeHostApi());
-    platform.setImageResolver(3, (VapImageResolveRequest request) async {
+    platform.setImageResolver(3, (
+      VapPlatformImageResolveRequest request,
+    ) async {
       throw StateError('boom');
     });
 
@@ -112,61 +116,65 @@ void main() {
     expect(response.errorMessage, contains('boom'));
   });
 
-  test('addPlaybackEvent and addClickEvent map nullable ids to -1', () async {
+  test('addEvent maps nullable ids and payloads', () async {
     final platform = PigeonVapPlayerPlatform(hostApi: _FakeHostApi());
 
-    final playbackFuture = platform.playbackEvents.first;
-    platform.addPlaybackEvent(VapPlaybackEventMessage());
+    final playbackFuture = platform.events.first;
+    platform.addEvent(VapEventMessage());
     final playback = await playbackFuture;
 
-    final clickFuture = platform.clickEvents.first;
-    platform.addClickEvent(VapResourceClickEventMessage());
+    expect(playback, isA<VapPlatformPlaybackEvent>());
+    expect(playback.viewId, -1);
+    expect(
+      (playback as VapPlatformPlaybackEvent).type,
+      VapPlatformPlaybackEventType.failed,
+    );
+
+    final clickFuture = platform.events.first;
+    platform.addEvent(
+      VapEventMessage(
+        kind: VapEventKindMessage.resourceClick,
+        tag: 'tap',
+        resourceWidth: 10,
+      ),
+    );
     final click = await clickFuture;
 
-    expect(playback.viewId, -1);
-    expect(playback.type, VapPlaybackEventType.failed);
+    expect(click, isA<VapPlatformResourceClickEvent>());
     expect(click.viewId, -1);
+    expect((click as VapPlatformResourceClickEvent).tag, 'tap');
+    expect(click.width, 10);
   });
 
   test('network cache methods forward to host api', () async {
     final fakeHost = _FakeHostApi();
     final platform = PigeonVapPlayerPlatform(hostApi: fakeHost);
 
-    fakeHost.networkCacheSizeBytes = 1234;
-    final size = await platform.getNetworkCacheSizeBytes();
+    fakeHost.cacheInfo = VapNetworkCacheInfoMessage(
+      sizeBytes: 1234,
+      maxBytes: 8192,
+    );
+    final info = await platform.getNetworkCacheInfo();
     await platform.clearNetworkCache();
-    await platform.pruneNetworkCacheToBytes(512);
+    await platform.setNetworkCacheMaxBytes(4096);
 
-    expect(size, 1234);
+    expect(info.sizeBytes, 1234);
+    expect(info.maxBytes, 8192);
     expect(fakeHost.clearNetworkCacheCalls, 1);
-    expect(fakeHost.lastPruneMaxBytes, 512);
-  });
-
-  test('network auto-eviction max bytes methods forward to host api', () async {
-    final fakeHost = _FakeHostApi();
-    final platform = PigeonVapPlayerPlatform(hostApi: fakeHost);
-
-    fakeHost.networkAutoEvictionMaxBytes = 8192;
-    final value = await platform.getNetworkAutoEvictionMaxBytes();
-    await platform.setNetworkAutoEvictionMaxBytes(4096);
-
-    expect(value, 8192);
-    expect(fakeHost.lastSetNetworkAutoEvictionMaxBytes, 4096);
+    expect(fakeHost.lastSetNetworkCacheMaxBytes, 4096);
   });
 }
 
 class _FakeHostApi extends VapHostApi {
   VapPlayRequestMessage? lastPlayRequest;
   int? lastStopViewId;
-  (int viewId, bool mute)? lastMute;
-  (int viewId, VapContentModeMessage mode)? lastContentMode;
-  (int viewId, bool enabled)? lastFrameEventsEnabled;
   int? lastDisposeViewId;
-  int networkCacheSizeBytes = 0;
+  VapNetworkCacheInfoMessage cacheInfo = VapNetworkCacheInfoMessage(
+    sizeBytes: 0,
+    maxBytes: 0,
+  );
   int clearNetworkCacheCalls = 0;
-  int? lastPruneMaxBytes;
-  int networkAutoEvictionMaxBytes = 0;
-  int? lastSetNetworkAutoEvictionMaxBytes;
+  int? lastSetNetworkCacheMaxBytes;
 
   @override
   Future<void> play(VapPlayRequestMessage request) async {
@@ -179,28 +187,13 @@ class _FakeHostApi extends VapHostApi {
   }
 
   @override
-  Future<void> setMute(int viewId, bool mute) async {
-    lastMute = (viewId, mute);
-  }
-
-  @override
-  Future<void> setContentMode(int viewId, VapContentModeMessage mode) async {
-    lastContentMode = (viewId, mode);
-  }
-
-  @override
-  Future<void> setFrameEventsEnabled(int viewId, bool enabled) async {
-    lastFrameEventsEnabled = (viewId, enabled);
-  }
-
-  @override
   Future<void> dispose(int viewId) async {
     lastDisposeViewId = viewId;
   }
 
   @override
-  Future<int> getNetworkCacheSizeBytes() async {
-    return networkCacheSizeBytes;
+  Future<VapNetworkCacheInfoMessage> getNetworkCacheInfo() async {
+    return cacheInfo;
   }
 
   @override
@@ -209,17 +202,7 @@ class _FakeHostApi extends VapHostApi {
   }
 
   @override
-  Future<void> pruneNetworkCacheToBytes(int maxBytes) async {
-    lastPruneMaxBytes = maxBytes;
-  }
-
-  @override
-  Future<int> getNetworkAutoEvictionMaxBytes() async {
-    return networkAutoEvictionMaxBytes;
-  }
-
-  @override
-  Future<void> setNetworkAutoEvictionMaxBytes(int maxBytes) async {
-    lastSetNetworkAutoEvictionMaxBytes = maxBytes;
+  Future<void> setNetworkCacheMaxBytes(int maxBytes) async {
+    lastSetNetworkCacheMaxBytes = maxBytes;
   }
 }

@@ -1,62 +1,73 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
-import 'package:vap_player_platform_interface/vap_player_platform_interface.dart';
+import 'package:vap_player_platform_interface/vap_player_platform_interface.dart'
+    as platform;
+
+import 'vap_models.dart';
 
 class VapController {
-  VapController({
-    this.autoPlay = false,
-    bool looping = false,
-    VapPlayerPlatform? platform,
-  }) : _platform = platform ?? VapPlayerPlatform.instance,
-       _looping = looping {
-    _playbackSubscription = _platform.playbackEvents.listen((
-      VapPlaybackEvent event,
-    ) {
-      if (_viewId == event.viewId) {
-        _playbackEventsController.add(event);
-      }
-    });
-    _clickSubscription = _platform.clickEvents.listen((
-      VapResourceClickEvent event,
-    ) {
-      if (_viewId == event.viewId) {
-        _clickEventsController.add(event);
-      }
-    });
+  VapController() : _platform = platform.VapPlayerPlatform.instance {
+    _eventsSubscription = _platform.events.listen(_handlePlatformEvent);
   }
 
-  final VapPlayerPlatform _platform;
-  final bool autoPlay;
-  bool _looping;
+  final platform.VapPlayerPlatform _platform;
+  final StreamController<VapEvent> _eventsController =
+      StreamController<VapEvent>.broadcast();
 
-  final StreamController<VapPlaybackEvent> _playbackEventsController =
-      StreamController<VapPlaybackEvent>.broadcast();
-  final StreamController<VapResourceClickEvent> _clickEventsController =
-      StreamController<VapResourceClickEvent>.broadcast();
-
-  late final StreamSubscription<VapPlaybackEvent> _playbackSubscription;
-  late final StreamSubscription<VapResourceClickEvent> _clickSubscription;
+  late final StreamSubscription<platform.VapPlatformEvent> _eventsSubscription;
 
   int? _viewId;
   VapImageResolver? _imageResolver;
   _PendingPlay? _pendingPlay;
-  _PlayParams? _lastPlayParams;
-  bool _isPaused = false;
   bool _disposed = false;
   Future<void>? _disposeFuture;
 
-  Stream<VapPlaybackEvent> get playbackEvents =>
-      _playbackEventsController.stream;
+  Stream<VapEvent> get events => _eventsController.stream;
 
-  Stream<VapResourceClickEvent> get clickEvents =>
-      _clickEventsController.stream;
+  Future<void> play(
+    VapSource source, {
+    VapPlaybackOptions options = const VapPlaybackOptions(),
+  }) {
+    _assertNotDisposed();
+    final _PlayParams params = _PlayParams(source: source, options: options);
+    _imageResolver = options.imageResolver;
 
-  bool get isAttached => _viewId != null;
+    final int? currentViewId = _viewId;
+    if (currentViewId != null) {
+      _platform.setImageResolver(
+        currentViewId,
+        _toPlatformImageResolver(options.imageResolver),
+      );
+      return _platform.play(_toPlayRequest(currentViewId, params));
+    }
+    return _queuePendingPlay(params);
+  }
 
-  int? get viewId => _viewId;
-  bool get looping => _looping;
+  Future<void> stop() {
+    _assertNotDisposed();
+    _cancelPendingPlay(
+      StateError(
+        'Pending play request was cancelled because playback stopped.',
+      ),
+    );
+    return _platform.stop(_requireViewId());
+  }
 
+  Future<void> dispose() {
+    final Future<void>? inFlightDispose = _disposeFuture;
+    if (inFlightDispose != null) {
+      return inFlightDispose;
+    }
+
+    final Future<void> disposeFuture = _disposeInternal();
+    _disposeFuture = disposeFuture;
+    return disposeFuture;
+  }
+
+  @internal
   void attach(int viewId) {
     _assertNotDisposed();
     if (_viewId == viewId) {
@@ -64,15 +75,18 @@ class VapController {
     }
     if (_viewId != null && _viewId != viewId) {
       throw StateError(
-        'This VapController is already attached to viewId=$_viewId. '
-        'Create a new controller for another VapView.',
+        'This VapController is already attached to a platform view.',
       );
     }
     _viewId = viewId;
-    _platform.setImageResolver(viewId, _imageResolver);
+    _platform.setImageResolver(
+      viewId,
+      _toPlatformImageResolver(_imageResolver),
+    );
     _flushPendingPlay(viewId);
   }
 
+  @internal
   void onViewDetached() {
     _detachView(
       pendingPlayError: StateError(
@@ -81,6 +95,7 @@ class VapController {
     );
   }
 
+  @internal
   Future<void> onViewDisposed() async {
     final int? currentViewId = _detachView(
       pendingPlayError: StateError(
@@ -96,194 +111,6 @@ class VapController {
         }
       }
     }
-  }
-
-  int? _detachView({required Object pendingPlayError}) {
-    _cancelPendingPlay(pendingPlayError);
-    final int? currentViewId = _viewId;
-    _viewId = null;
-    if (currentViewId != null) {
-      _platform.setImageResolver(currentViewId, null);
-    }
-    return currentViewId;
-  }
-
-  void setImageResolver(VapImageResolver? resolver) {
-    _assertNotDisposed();
-    _imageResolver = resolver;
-    final int? currentViewId = _viewId;
-    if (currentViewId != null) {
-      _platform.setImageResolver(currentViewId, resolver);
-    }
-  }
-
-  void setLooping(bool looping) {
-    _assertNotDisposed();
-    _looping = looping;
-  }
-
-  Future<void> play({
-    required VapSourceType sourceType,
-    required String source,
-    String? assetPackage,
-    int? repeatCount,
-    bool mute = false,
-    VapContentMode contentMode = VapContentMode.scaleToFill,
-    int? fps,
-    bool frameEventsEnabled = false,
-    Map<String, String> tagValues = const <String, String>{},
-  }) {
-    _assertNotDisposed();
-    final int effectiveRepeatCount = repeatCount ?? (_looping ? -1 : 0);
-    final _PlayParams params = _PlayParams(
-      sourceType: sourceType,
-      source: source,
-      assetPackage: assetPackage,
-      repeatCount: effectiveRepeatCount,
-      mute: mute,
-      contentMode: contentMode,
-      fps: fps,
-      frameEventsEnabled: frameEventsEnabled,
-      tagValues: tagValues,
-    );
-    _lastPlayParams = params;
-    _isPaused = false;
-
-    final int? currentViewId = _viewId;
-    if (currentViewId != null) {
-      return _platform.play(_toPlayRequest(currentViewId, params));
-    }
-    if (!autoPlay) {
-      throw StateError('VapController is not attached to a VapView yet.');
-    }
-    return _queuePendingPlay(params);
-  }
-
-  Future<void> playAsset(
-    String assetPath, {
-    String? assetPackage,
-    int? repeatCount,
-    bool mute = false,
-    VapContentMode contentMode = VapContentMode.scaleToFill,
-    int? fps,
-    bool frameEventsEnabled = false,
-    Map<String, String> tagValues = const <String, String>{},
-  }) {
-    return play(
-      sourceType: VapSourceType.asset,
-      source: assetPath,
-      assetPackage: assetPackage,
-      repeatCount: repeatCount,
-      mute: mute,
-      contentMode: contentMode,
-      fps: fps,
-      frameEventsEnabled: frameEventsEnabled,
-      tagValues: tagValues,
-    );
-  }
-
-  Future<void> playFile(
-    String filePath, {
-    int? repeatCount,
-    bool mute = false,
-    VapContentMode contentMode = VapContentMode.scaleToFill,
-    int? fps,
-    bool frameEventsEnabled = false,
-    Map<String, String> tagValues = const <String, String>{},
-  }) {
-    return play(
-      sourceType: VapSourceType.file,
-      source: filePath,
-      repeatCount: repeatCount,
-      mute: mute,
-      contentMode: contentMode,
-      fps: fps,
-      frameEventsEnabled: frameEventsEnabled,
-      tagValues: tagValues,
-    );
-  }
-
-  Future<void> playNetwork(
-    String url, {
-    int? repeatCount,
-    bool mute = false,
-    VapContentMode contentMode = VapContentMode.scaleToFill,
-    int? fps,
-    bool frameEventsEnabled = false,
-    Map<String, String> tagValues = const <String, String>{},
-  }) {
-    final Uri? parsed = Uri.tryParse(url);
-    final String? scheme = parsed?.scheme.toLowerCase();
-    final bool valid =
-        parsed != null &&
-        parsed.isAbsolute &&
-        (scheme == 'http' || scheme == 'https');
-    if (!valid) {
-      throw StateError(
-        'playNetwork requires an absolute http/https URL. Received: $url',
-      );
-    }
-    return play(
-      sourceType: VapSourceType.network,
-      source: url,
-      repeatCount: repeatCount,
-      mute: mute,
-      contentMode: contentMode,
-      fps: fps,
-      frameEventsEnabled: frameEventsEnabled,
-      tagValues: tagValues,
-    );
-  }
-
-  Future<void> stop() {
-    _isPaused = false;
-    return _platform.stop(_requireViewId());
-  }
-
-  Future<void> pause() {
-    final _PlayParams? lastPlayParams = _lastPlayParams;
-    if (lastPlayParams == null) {
-      return Future<void>.value();
-    }
-    _isPaused = true;
-    return _platform.stop(_requireViewId());
-  }
-
-  Future<void> resume() {
-    if (!_isPaused) {
-      return Future<void>.value();
-    }
-    final _PlayParams? lastPlayParams = _lastPlayParams;
-    if (lastPlayParams == null) {
-      _isPaused = false;
-      return Future<void>.value();
-    }
-    _isPaused = false;
-    final int currentViewId = _requireViewId();
-    return _platform.play(_toPlayRequest(currentViewId, lastPlayParams));
-  }
-
-  Future<void> setMute(bool mute) {
-    return _platform.setMute(_requireViewId(), mute);
-  }
-
-  Future<void> setContentMode(VapContentMode mode) {
-    return _platform.setContentMode(_requireViewId(), mode);
-  }
-
-  Future<void> setFrameEventsEnabled(bool enabled) {
-    return _platform.setFrameEventsEnabled(_requireViewId(), enabled);
-  }
-
-  Future<void> dispose() {
-    final Future<void>? inFlightDispose = _disposeFuture;
-    if (inFlightDispose != null) {
-      return inFlightDispose;
-    }
-
-    final Future<void> disposeFuture = _disposeInternal();
-    _disposeFuture = disposeFuture;
-    return disposeFuture;
   }
 
   Future<void> _disposeInternal() async {
@@ -310,21 +137,61 @@ class VapController {
     }
 
     await runDisposeStep(onViewDisposed);
-    await runDisposeStep(_playbackSubscription.cancel);
-    await runDisposeStep(_clickSubscription.cancel);
-    await runDisposeStep(_playbackEventsController.close);
-    await runDisposeStep(_clickEventsController.close);
+    await runDisposeStep(_eventsSubscription.cancel);
+    await runDisposeStep(_eventsController.close);
 
     if (firstError != null) {
       Error.throwWithStackTrace(firstError!, firstStackTrace!);
     }
   }
 
+  void _handlePlatformEvent(platform.VapPlatformEvent event) {
+    if (_viewId != event.viewId) {
+      return;
+    }
+    switch (event) {
+      case platform.VapPlatformPlaybackEvent():
+        _eventsController.add(
+          VapPlaybackEvent(
+            type: _fromPlatformPlaybackEventType(event.type),
+            frameIndex: event.frameIndex,
+            width: event.width,
+            height: event.height,
+            fps: event.fps,
+            isMix: event.isMix,
+            errorCode: event.errorCode,
+            errorMessage: event.errorMessage,
+          ),
+        );
+      case platform.VapPlatformResourceClickEvent():
+        _eventsController.add(
+          VapResourceClickEvent(
+            resourceId: event.resourceId,
+            tag: event.tag,
+            x: event.x,
+            y: event.y,
+            width: event.width,
+            height: event.height,
+          ),
+        );
+    }
+  }
+
+  int? _detachView({required Object pendingPlayError}) {
+    _cancelPendingPlay(pendingPlayError);
+    final int? currentViewId = _viewId;
+    _viewId = null;
+    if (currentViewId != null) {
+      _platform.setImageResolver(currentViewId, null);
+    }
+    return currentViewId;
+  }
+
   int _requireViewId() {
     _assertNotDisposed();
     final int? currentViewId = _viewId;
     if (currentViewId == null) {
-      throw StateError('VapController is not attached to a VapView yet.');
+      throw StateError('VapController is not attached to a VapPlayer yet.');
     }
     return currentViewId;
   }
@@ -335,18 +202,21 @@ class VapController {
     }
   }
 
-  VapPlayRequest _toPlayRequest(int viewId, _PlayParams params) {
-    return VapPlayRequest(
+  platform.VapPlatformPlayRequest _toPlayRequest(
+    int viewId,
+    _PlayParams params,
+  ) {
+    final VapSource source = params.source;
+    return platform.VapPlatformPlayRequest(
       viewId: viewId,
-      sourceType: params.sourceType,
-      source: params.source,
-      assetPackage: params.assetPackage,
-      repeatCount: params.repeatCount,
-      mute: params.mute,
-      contentMode: params.contentMode,
-      fps: params.fps,
-      frameEventsEnabled: params.frameEventsEnabled,
-      tagValues: params.tagValues,
+      sourceType: _toPlatformSourceType(source),
+      source: source.value,
+      assetPackage: source is VapAssetSource ? source.package : null,
+      loop: params.options.loop,
+      muted: params.options.muted,
+      contentMode: _toPlatformContentMode(params.options.fit),
+      frameEvents: params.options.frameEvents,
+      tagValues: params.options.tags,
     );
   }
 
@@ -370,6 +240,10 @@ class VapController {
       return;
     }
     _pendingPlay = null;
+    _platform.setImageResolver(
+      viewId,
+      _toPlatformImageResolver(pending.params.options.imageResolver),
+    );
     _platform
         .play(_toPlayRequest(viewId, pending.params))
         .then(
@@ -394,6 +268,27 @@ class VapController {
     }
   }
 
+  platform.VapPlatformImageResolver? _toPlatformImageResolver(
+    VapImageResolver? resolver,
+  ) {
+    if (resolver == null) {
+      return null;
+    }
+    return (platform.VapPlatformImageResolveRequest request) {
+      return resolver(
+        VapImageResolveRequest(
+          resourceId: request.resourceId,
+          tag: request.tag,
+          type: request.type,
+          loadType: request.loadType,
+          width: request.width,
+          height: request.height,
+          url: request.url,
+        ),
+      );
+    };
+  }
+
   bool _isViewAlreadyDisposedError(Object error, int viewId) {
     if (error is PlatformException) {
       if (error.code == 'not-found') {
@@ -407,30 +302,67 @@ class VapController {
     }
     return error.toString().contains('No VapView found for viewId=$viewId');
   }
+
+  static platform.VapPlatformSourceType _toPlatformSourceType(
+    VapSource source,
+  ) {
+    switch (source) {
+      case VapAssetSource():
+        return platform.VapPlatformSourceType.asset;
+      case VapFileSource():
+        return platform.VapPlatformSourceType.file;
+      case VapNetworkSource():
+        return platform.VapPlatformSourceType.network;
+    }
+  }
+
+  static platform.VapPlatformContentMode _toPlatformContentMode(BoxFit fit) {
+    switch (fit) {
+      case BoxFit.fill:
+        return platform.VapPlatformContentMode.scaleToFill;
+      case BoxFit.contain:
+        return platform.VapPlatformContentMode.aspectFit;
+      case BoxFit.cover:
+        return platform.VapPlatformContentMode.aspectFill;
+      case BoxFit.fitWidth:
+      case BoxFit.fitHeight:
+      case BoxFit.none:
+      case BoxFit.scaleDown:
+        throw ArgumentError.value(
+          fit,
+          'fit',
+          'Only BoxFit.fill, BoxFit.contain, and BoxFit.cover are supported.',
+        );
+    }
+  }
+
+  static VapPlaybackEventType _fromPlatformPlaybackEventType(
+    platform.VapPlatformPlaybackEventType type,
+  ) {
+    switch (type) {
+      case platform.VapPlatformPlaybackEventType.configReady:
+        return VapPlaybackEventType.configReady;
+      case platform.VapPlatformPlaybackEventType.started:
+        return VapPlaybackEventType.started;
+      case platform.VapPlatformPlaybackEventType.frame:
+        return VapPlaybackEventType.frame;
+      case platform.VapPlatformPlaybackEventType.complete:
+        return VapPlaybackEventType.complete;
+      case platform.VapPlatformPlaybackEventType.destroy:
+        return VapPlaybackEventType.destroy;
+      case platform.VapPlatformPlaybackEventType.stopped:
+        return VapPlaybackEventType.stopped;
+      case platform.VapPlatformPlaybackEventType.failed:
+        return VapPlaybackEventType.failed;
+    }
+  }
 }
 
 class _PlayParams {
-  const _PlayParams({
-    required this.sourceType,
-    required this.source,
-    required this.assetPackage,
-    required this.repeatCount,
-    required this.mute,
-    required this.contentMode,
-    required this.fps,
-    required this.frameEventsEnabled,
-    required this.tagValues,
-  });
+  const _PlayParams({required this.source, required this.options});
 
-  final VapSourceType sourceType;
-  final String source;
-  final String? assetPackage;
-  final int repeatCount;
-  final bool mute;
-  final VapContentMode contentMode;
-  final int? fps;
-  final bool frameEventsEnabled;
-  final Map<String, String> tagValues;
+  final VapSource source;
+  final VapPlaybackOptions options;
 }
 
 class _PendingPlay {

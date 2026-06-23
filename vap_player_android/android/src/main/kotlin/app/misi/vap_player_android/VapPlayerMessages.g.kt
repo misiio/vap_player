@@ -219,6 +219,17 @@ enum class VapContentModeMessage(val raw: Int) {
   }
 }
 
+enum class VapEventKindMessage(val raw: Int) {
+  PLAYBACK(0),
+  RESOURCE_CLICK(1);
+
+  companion object {
+    fun ofRaw(raw: Int): VapEventKindMessage? {
+      return values().firstOrNull { it.raw == raw }
+    }
+  }
+}
+
 enum class VapPlaybackEventTypeMessage(val raw: Int) {
   CONFIG_READY(0),
   STARTED(1),
@@ -241,11 +252,10 @@ data class VapPlayRequestMessage (
   val sourceType: VapSourceTypeMessage? = null,
   val source: String? = null,
   val assetPackage: String? = null,
-  val repeatCount: Long? = null,
-  val mute: Boolean? = null,
+  val loop: Boolean? = null,
+  val muted: Boolean? = null,
   val contentMode: VapContentModeMessage? = null,
-  val fps: Long? = null,
-  val frameEventsEnabled: Boolean? = null,
+  val frameEvents: Boolean? = null,
   val tagValues: Map<String?, String?>? = null
 )
  {
@@ -255,13 +265,12 @@ data class VapPlayRequestMessage (
       val sourceType = pigeonVar_list[1] as VapSourceTypeMessage?
       val source = pigeonVar_list[2] as String?
       val assetPackage = pigeonVar_list[3] as String?
-      val repeatCount = pigeonVar_list[4] as Long?
-      val mute = pigeonVar_list[5] as Boolean?
+      val loop = pigeonVar_list[4] as Boolean?
+      val muted = pigeonVar_list[5] as Boolean?
       val contentMode = pigeonVar_list[6] as VapContentModeMessage?
-      val fps = pigeonVar_list[7] as Long?
-      val frameEventsEnabled = pigeonVar_list[8] as Boolean?
-      val tagValues = pigeonVar_list[9] as Map<String?, String?>?
-      return VapPlayRequestMessage(viewId, sourceType, source, assetPackage, repeatCount, mute, contentMode, fps, frameEventsEnabled, tagValues)
+      val frameEvents = pigeonVar_list[7] as Boolean?
+      val tagValues = pigeonVar_list[8] as Map<String?, String?>?
+      return VapPlayRequestMessage(viewId, sourceType, source, assetPackage, loop, muted, contentMode, frameEvents, tagValues)
     }
   }
   fun toList(): List<Any?> {
@@ -270,11 +279,10 @@ data class VapPlayRequestMessage (
       sourceType,
       source,
       assetPackage,
-      repeatCount,
-      mute,
+      loop,
+      muted,
       contentMode,
-      fps,
-      frameEventsEnabled,
+      frameEvents,
       tagValues,
     )
   }
@@ -286,7 +294,7 @@ data class VapPlayRequestMessage (
       return true
     }
     val other = other as VapPlayRequestMessage
-    return VapPlayerMessagesPigeonUtils.deepEquals(this.viewId, other.viewId) && VapPlayerMessagesPigeonUtils.deepEquals(this.sourceType, other.sourceType) && VapPlayerMessagesPigeonUtils.deepEquals(this.source, other.source) && VapPlayerMessagesPigeonUtils.deepEquals(this.assetPackage, other.assetPackage) && VapPlayerMessagesPigeonUtils.deepEquals(this.repeatCount, other.repeatCount) && VapPlayerMessagesPigeonUtils.deepEquals(this.mute, other.mute) && VapPlayerMessagesPigeonUtils.deepEquals(this.contentMode, other.contentMode) && VapPlayerMessagesPigeonUtils.deepEquals(this.fps, other.fps) && VapPlayerMessagesPigeonUtils.deepEquals(this.frameEventsEnabled, other.frameEventsEnabled) && VapPlayerMessagesPigeonUtils.deepEquals(this.tagValues, other.tagValues)
+    return VapPlayerMessagesPigeonUtils.deepEquals(this.viewId, other.viewId) && VapPlayerMessagesPigeonUtils.deepEquals(this.sourceType, other.sourceType) && VapPlayerMessagesPigeonUtils.deepEquals(this.source, other.source) && VapPlayerMessagesPigeonUtils.deepEquals(this.assetPackage, other.assetPackage) && VapPlayerMessagesPigeonUtils.deepEquals(this.loop, other.loop) && VapPlayerMessagesPigeonUtils.deepEquals(this.muted, other.muted) && VapPlayerMessagesPigeonUtils.deepEquals(this.contentMode, other.contentMode) && VapPlayerMessagesPigeonUtils.deepEquals(this.frameEvents, other.frameEvents) && VapPlayerMessagesPigeonUtils.deepEquals(this.tagValues, other.tagValues)
   }
 
   override fun hashCode(): Int {
@@ -295,47 +303,61 @@ data class VapPlayRequestMessage (
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.sourceType)
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.source)
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.assetPackage)
-    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.repeatCount)
-    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.mute)
+    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.loop)
+    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.muted)
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.contentMode)
-    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.fps)
-    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.frameEventsEnabled)
+    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.frameEvents)
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.tagValues)
     return result
   }
 }
 
 /** Generated class from Pigeon that represents data sent in messages. */
-data class VapPlaybackEventMessage (
+data class VapEventMessage (
   val viewId: Long? = null,
-  val type: VapPlaybackEventTypeMessage? = null,
+  val kind: VapEventKindMessage? = null,
+  val playbackType: VapPlaybackEventTypeMessage? = null,
   val frameIndex: Long? = null,
   val width: Long? = null,
   val height: Long? = null,
   val fps: Long? = null,
   val isMix: Boolean? = null,
   val errorCode: Long? = null,
-  val errorMessage: String? = null
+  val errorMessage: String? = null,
+  val resourceId: String? = null,
+  val tag: String? = null,
+  val x: Double? = null,
+  val y: Double? = null,
+  val resourceWidth: Double? = null,
+  val resourceHeight: Double? = null
 )
  {
   companion object {
-    fun fromList(pigeonVar_list: List<Any?>): VapPlaybackEventMessage {
+    fun fromList(pigeonVar_list: List<Any?>): VapEventMessage {
       val viewId = pigeonVar_list[0] as Long?
-      val type = pigeonVar_list[1] as VapPlaybackEventTypeMessage?
-      val frameIndex = pigeonVar_list[2] as Long?
-      val width = pigeonVar_list[3] as Long?
-      val height = pigeonVar_list[4] as Long?
-      val fps = pigeonVar_list[5] as Long?
-      val isMix = pigeonVar_list[6] as Boolean?
-      val errorCode = pigeonVar_list[7] as Long?
-      val errorMessage = pigeonVar_list[8] as String?
-      return VapPlaybackEventMessage(viewId, type, frameIndex, width, height, fps, isMix, errorCode, errorMessage)
+      val kind = pigeonVar_list[1] as VapEventKindMessage?
+      val playbackType = pigeonVar_list[2] as VapPlaybackEventTypeMessage?
+      val frameIndex = pigeonVar_list[3] as Long?
+      val width = pigeonVar_list[4] as Long?
+      val height = pigeonVar_list[5] as Long?
+      val fps = pigeonVar_list[6] as Long?
+      val isMix = pigeonVar_list[7] as Boolean?
+      val errorCode = pigeonVar_list[8] as Long?
+      val errorMessage = pigeonVar_list[9] as String?
+      val resourceId = pigeonVar_list[10] as String?
+      val tag = pigeonVar_list[11] as String?
+      val x = pigeonVar_list[12] as Double?
+      val y = pigeonVar_list[13] as Double?
+      val resourceWidth = pigeonVar_list[14] as Double?
+      val resourceHeight = pigeonVar_list[15] as Double?
+      return VapEventMessage(viewId, kind, playbackType, frameIndex, width, height, fps, isMix, errorCode, errorMessage, resourceId, tag, x, y, resourceWidth, resourceHeight)
     }
   }
   fun toList(): List<Any?> {
     return listOf(
       viewId,
-      type,
+      kind,
+      playbackType,
       frameIndex,
       width,
       height,
@@ -343,6 +365,12 @@ data class VapPlaybackEventMessage (
       isMix,
       errorCode,
       errorMessage,
+      resourceId,
+      tag,
+      x,
+      y,
+      resourceWidth,
+      resourceHeight,
     )
   }
   override fun equals(other: Any?): Boolean {
@@ -352,14 +380,15 @@ data class VapPlaybackEventMessage (
     if (this === other) {
       return true
     }
-    val other = other as VapPlaybackEventMessage
-    return VapPlayerMessagesPigeonUtils.deepEquals(this.viewId, other.viewId) && VapPlayerMessagesPigeonUtils.deepEquals(this.type, other.type) && VapPlayerMessagesPigeonUtils.deepEquals(this.frameIndex, other.frameIndex) && VapPlayerMessagesPigeonUtils.deepEquals(this.width, other.width) && VapPlayerMessagesPigeonUtils.deepEquals(this.height, other.height) && VapPlayerMessagesPigeonUtils.deepEquals(this.fps, other.fps) && VapPlayerMessagesPigeonUtils.deepEquals(this.isMix, other.isMix) && VapPlayerMessagesPigeonUtils.deepEquals(this.errorCode, other.errorCode) && VapPlayerMessagesPigeonUtils.deepEquals(this.errorMessage, other.errorMessage)
+    val other = other as VapEventMessage
+    return VapPlayerMessagesPigeonUtils.deepEquals(this.viewId, other.viewId) && VapPlayerMessagesPigeonUtils.deepEquals(this.kind, other.kind) && VapPlayerMessagesPigeonUtils.deepEquals(this.playbackType, other.playbackType) && VapPlayerMessagesPigeonUtils.deepEquals(this.frameIndex, other.frameIndex) && VapPlayerMessagesPigeonUtils.deepEquals(this.width, other.width) && VapPlayerMessagesPigeonUtils.deepEquals(this.height, other.height) && VapPlayerMessagesPigeonUtils.deepEquals(this.fps, other.fps) && VapPlayerMessagesPigeonUtils.deepEquals(this.isMix, other.isMix) && VapPlayerMessagesPigeonUtils.deepEquals(this.errorCode, other.errorCode) && VapPlayerMessagesPigeonUtils.deepEquals(this.errorMessage, other.errorMessage) && VapPlayerMessagesPigeonUtils.deepEquals(this.resourceId, other.resourceId) && VapPlayerMessagesPigeonUtils.deepEquals(this.tag, other.tag) && VapPlayerMessagesPigeonUtils.deepEquals(this.x, other.x) && VapPlayerMessagesPigeonUtils.deepEquals(this.y, other.y) && VapPlayerMessagesPigeonUtils.deepEquals(this.resourceWidth, other.resourceWidth) && VapPlayerMessagesPigeonUtils.deepEquals(this.resourceHeight, other.resourceHeight)
   }
 
   override fun hashCode(): Int {
     var result = javaClass.hashCode()
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.viewId)
-    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.type)
+    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.kind)
+    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.playbackType)
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.frameIndex)
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.width)
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.height)
@@ -367,64 +396,12 @@ data class VapPlaybackEventMessage (
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.isMix)
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.errorCode)
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.errorMessage)
-    return result
-  }
-}
-
-/** Generated class from Pigeon that represents data sent in messages. */
-data class VapResourceClickEventMessage (
-  val viewId: Long? = null,
-  val resourceId: String? = null,
-  val tag: String? = null,
-  val x: Double? = null,
-  val y: Double? = null,
-  val width: Double? = null,
-  val height: Double? = null
-)
- {
-  companion object {
-    fun fromList(pigeonVar_list: List<Any?>): VapResourceClickEventMessage {
-      val viewId = pigeonVar_list[0] as Long?
-      val resourceId = pigeonVar_list[1] as String?
-      val tag = pigeonVar_list[2] as String?
-      val x = pigeonVar_list[3] as Double?
-      val y = pigeonVar_list[4] as Double?
-      val width = pigeonVar_list[5] as Double?
-      val height = pigeonVar_list[6] as Double?
-      return VapResourceClickEventMessage(viewId, resourceId, tag, x, y, width, height)
-    }
-  }
-  fun toList(): List<Any?> {
-    return listOf(
-      viewId,
-      resourceId,
-      tag,
-      x,
-      y,
-      width,
-      height,
-    )
-  }
-  override fun equals(other: Any?): Boolean {
-    if (other == null || other.javaClass != javaClass) {
-      return false
-    }
-    if (this === other) {
-      return true
-    }
-    val other = other as VapResourceClickEventMessage
-    return VapPlayerMessagesPigeonUtils.deepEquals(this.viewId, other.viewId) && VapPlayerMessagesPigeonUtils.deepEquals(this.resourceId, other.resourceId) && VapPlayerMessagesPigeonUtils.deepEquals(this.tag, other.tag) && VapPlayerMessagesPigeonUtils.deepEquals(this.x, other.x) && VapPlayerMessagesPigeonUtils.deepEquals(this.y, other.y) && VapPlayerMessagesPigeonUtils.deepEquals(this.width, other.width) && VapPlayerMessagesPigeonUtils.deepEquals(this.height, other.height)
-  }
-
-  override fun hashCode(): Int {
-    var result = javaClass.hashCode()
-    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.viewId)
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.resourceId)
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.tag)
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.x)
     result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.y)
-    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.width)
-    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.height)
+    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.resourceWidth)
+    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.resourceHeight)
     return result
   }
 }
@@ -528,6 +505,44 @@ data class VapImageResolveResultMessage (
     return result
   }
 }
+
+/** Generated class from Pigeon that represents data sent in messages. */
+data class VapNetworkCacheInfoMessage (
+  val sizeBytes: Long? = null,
+  val maxBytes: Long? = null
+)
+ {
+  companion object {
+    fun fromList(pigeonVar_list: List<Any?>): VapNetworkCacheInfoMessage {
+      val sizeBytes = pigeonVar_list[0] as Long?
+      val maxBytes = pigeonVar_list[1] as Long?
+      return VapNetworkCacheInfoMessage(sizeBytes, maxBytes)
+    }
+  }
+  fun toList(): List<Any?> {
+    return listOf(
+      sizeBytes,
+      maxBytes,
+    )
+  }
+  override fun equals(other: Any?): Boolean {
+    if (other == null || other.javaClass != javaClass) {
+      return false
+    }
+    if (this === other) {
+      return true
+    }
+    val other = other as VapNetworkCacheInfoMessage
+    return VapPlayerMessagesPigeonUtils.deepEquals(this.sizeBytes, other.sizeBytes) && VapPlayerMessagesPigeonUtils.deepEquals(this.maxBytes, other.maxBytes)
+  }
+
+  override fun hashCode(): Int {
+    var result = javaClass.hashCode()
+    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.sizeBytes)
+    result = 31 * result + VapPlayerMessagesPigeonUtils.deepHash(this.maxBytes)
+    return result
+  }
+}
 private open class VapPlayerMessagesPigeonCodec : StandardMessageCodec() {
   override fun readValueOfType(type: Byte, buffer: ByteBuffer): Any? {
     return when (type) {
@@ -543,22 +558,22 @@ private open class VapPlayerMessagesPigeonCodec : StandardMessageCodec() {
       }
       131.toByte() -> {
         return (readValue(buffer) as Long?)?.let {
-          VapPlaybackEventTypeMessage.ofRaw(it.toInt())
+          VapEventKindMessage.ofRaw(it.toInt())
         }
       }
       132.toByte() -> {
-        return (readValue(buffer) as? List<Any?>)?.let {
-          VapPlayRequestMessage.fromList(it)
+        return (readValue(buffer) as Long?)?.let {
+          VapPlaybackEventTypeMessage.ofRaw(it.toInt())
         }
       }
       133.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
-          VapPlaybackEventMessage.fromList(it)
+          VapPlayRequestMessage.fromList(it)
         }
       }
       134.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
-          VapResourceClickEventMessage.fromList(it)
+          VapEventMessage.fromList(it)
         }
       }
       135.toByte() -> {
@@ -569,6 +584,11 @@ private open class VapPlayerMessagesPigeonCodec : StandardMessageCodec() {
       136.toByte() -> {
         return (readValue(buffer) as? List<Any?>)?.let {
           VapImageResolveResultMessage.fromList(it)
+        }
+      }
+      137.toByte() -> {
+        return (readValue(buffer) as? List<Any?>)?.let {
+          VapNetworkCacheInfoMessage.fromList(it)
         }
       }
       else -> super.readValueOfType(type, buffer)
@@ -584,19 +604,19 @@ private open class VapPlayerMessagesPigeonCodec : StandardMessageCodec() {
         stream.write(130)
         writeValue(stream, value.raw.toLong())
       }
-      is VapPlaybackEventTypeMessage -> {
+      is VapEventKindMessage -> {
         stream.write(131)
         writeValue(stream, value.raw.toLong())
       }
-      is VapPlayRequestMessage -> {
+      is VapPlaybackEventTypeMessage -> {
         stream.write(132)
-        writeValue(stream, value.toList())
+        writeValue(stream, value.raw.toLong())
       }
-      is VapPlaybackEventMessage -> {
+      is VapPlayRequestMessage -> {
         stream.write(133)
         writeValue(stream, value.toList())
       }
-      is VapResourceClickEventMessage -> {
+      is VapEventMessage -> {
         stream.write(134)
         writeValue(stream, value.toList())
       }
@@ -606,6 +626,10 @@ private open class VapPlayerMessagesPigeonCodec : StandardMessageCodec() {
       }
       is VapImageResolveResultMessage -> {
         stream.write(136)
+        writeValue(stream, value.toList())
+      }
+      is VapNetworkCacheInfoMessage -> {
+        stream.write(137)
         writeValue(stream, value.toList())
       }
       else -> super.writeValue(stream, value)
@@ -618,15 +642,10 @@ private open class VapPlayerMessagesPigeonCodec : StandardMessageCodec() {
 interface VapHostApi {
   fun play(request: VapPlayRequestMessage)
   fun stop(viewId: Long)
-  fun setMute(viewId: Long, mute: Boolean)
-  fun setContentMode(viewId: Long, mode: VapContentModeMessage)
-  fun setFrameEventsEnabled(viewId: Long, enabled: Boolean)
   fun dispose(viewId: Long)
-  fun getNetworkCacheSizeBytes(callback: (Result<Long>) -> Unit)
+  fun getNetworkCacheInfo(callback: (Result<VapNetworkCacheInfoMessage>) -> Unit)
   fun clearNetworkCache()
-  fun pruneNetworkCacheToBytes(maxBytes: Long)
-  fun getNetworkAutoEvictionMaxBytes(callback: (Result<Long>) -> Unit)
-  fun setNetworkAutoEvictionMaxBytes(maxBytes: Long)
+  fun setNetworkCacheMaxBytes(maxBytes: Long)
 
   companion object {
     /** The codec used by VapHostApi. */
@@ -674,63 +693,6 @@ interface VapHostApi {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setMute$separatedMessageChannelSuffix", codec)
-        if (api != null) {
-          channel.setMessageHandler { message, reply ->
-            val args = message as List<Any?>
-            val viewIdArg = args[0] as Long
-            val muteArg = args[1] as Boolean
-            val wrapped: List<Any?> = try {
-              api.setMute(viewIdArg, muteArg)
-              listOf(null)
-            } catch (exception: Throwable) {
-              VapPlayerMessagesPigeonUtils.wrapError(exception)
-            }
-            reply.reply(wrapped)
-          }
-        } else {
-          channel.setMessageHandler(null)
-        }
-      }
-      run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setContentMode$separatedMessageChannelSuffix", codec)
-        if (api != null) {
-          channel.setMessageHandler { message, reply ->
-            val args = message as List<Any?>
-            val viewIdArg = args[0] as Long
-            val modeArg = args[1] as VapContentModeMessage
-            val wrapped: List<Any?> = try {
-              api.setContentMode(viewIdArg, modeArg)
-              listOf(null)
-            } catch (exception: Throwable) {
-              VapPlayerMessagesPigeonUtils.wrapError(exception)
-            }
-            reply.reply(wrapped)
-          }
-        } else {
-          channel.setMessageHandler(null)
-        }
-      }
-      run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setFrameEventsEnabled$separatedMessageChannelSuffix", codec)
-        if (api != null) {
-          channel.setMessageHandler { message, reply ->
-            val args = message as List<Any?>
-            val viewIdArg = args[0] as Long
-            val enabledArg = args[1] as Boolean
-            val wrapped: List<Any?> = try {
-              api.setFrameEventsEnabled(viewIdArg, enabledArg)
-              listOf(null)
-            } catch (exception: Throwable) {
-              VapPlayerMessagesPigeonUtils.wrapError(exception)
-            }
-            reply.reply(wrapped)
-          }
-        } else {
-          channel.setMessageHandler(null)
-        }
-      }
-      run {
         val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.dispose$separatedMessageChannelSuffix", codec)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
@@ -749,10 +711,10 @@ interface VapHostApi {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.getNetworkCacheSizeBytes$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.getNetworkCacheInfo$separatedMessageChannelSuffix", codec)
         if (api != null) {
           channel.setMessageHandler { _, reply ->
-            api.getNetworkCacheSizeBytes{ result: Result<Long> ->
+            api.getNetworkCacheInfo{ result: Result<VapNetworkCacheInfoMessage> ->
               val error = result.exceptionOrNull()
               if (error != null) {
                 reply.reply(VapPlayerMessagesPigeonUtils.wrapError(error))
@@ -783,49 +745,13 @@ interface VapHostApi {
         }
       }
       run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.pruneNetworkCacheToBytes$separatedMessageChannelSuffix", codec)
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setNetworkCacheMaxBytes$separatedMessageChannelSuffix", codec)
         if (api != null) {
           channel.setMessageHandler { message, reply ->
             val args = message as List<Any?>
             val maxBytesArg = args[0] as Long
             val wrapped: List<Any?> = try {
-              api.pruneNetworkCacheToBytes(maxBytesArg)
-              listOf(null)
-            } catch (exception: Throwable) {
-              VapPlayerMessagesPigeonUtils.wrapError(exception)
-            }
-            reply.reply(wrapped)
-          }
-        } else {
-          channel.setMessageHandler(null)
-        }
-      }
-      run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.getNetworkAutoEvictionMaxBytes$separatedMessageChannelSuffix", codec)
-        if (api != null) {
-          channel.setMessageHandler { _, reply ->
-            api.getNetworkAutoEvictionMaxBytes{ result: Result<Long> ->
-              val error = result.exceptionOrNull()
-              if (error != null) {
-                reply.reply(VapPlayerMessagesPigeonUtils.wrapError(error))
-              } else {
-                val data = result.getOrNull()
-                reply.reply(VapPlayerMessagesPigeonUtils.wrapResult(data))
-              }
-            }
-          }
-        } else {
-          channel.setMessageHandler(null)
-        }
-      }
-      run {
-        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setNetworkAutoEvictionMaxBytes$separatedMessageChannelSuffix", codec)
-        if (api != null) {
-          channel.setMessageHandler { message, reply ->
-            val args = message as List<Any?>
-            val maxBytesArg = args[0] as Long
-            val wrapped: List<Any?> = try {
-              api.setNetworkAutoEvictionMaxBytes(maxBytesArg)
+              api.setNetworkCacheMaxBytes(maxBytesArg)
               listOf(null)
             } catch (exception: Throwable) {
               VapPlayerMessagesPigeonUtils.wrapError(exception)
@@ -847,27 +773,10 @@ class VapEventApi(private val binaryMessenger: BinaryMessenger, private val mess
       VapPlayerMessagesPigeonCodec()
     }
   }
-  fun onPlaybackEvent(eventArg: VapPlaybackEventMessage, callback: (Result<Unit>) -> Unit)
+  fun onEvent(eventArg: VapEventMessage, callback: (Result<Unit>) -> Unit)
 {
     val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
-    val channelName = "dev.flutter.pigeon.vap_player_platform_interface.VapEventApi.onPlaybackEvent$separatedMessageChannelSuffix"
-    val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
-    channel.send(listOf(eventArg)) {
-      if (it is List<*>) {
-        if (it.size > 1) {
-          callback(Result.failure(FlutterError(it[0] as String, it[1] as String, it[2] as String?)))
-        } else {
-          callback(Result.success(Unit))
-        }
-      } else {
-        callback(Result.failure(VapPlayerMessagesPigeonUtils.createConnectionError(channelName)))
-      } 
-    }
-  }
-  fun onResourceClick(eventArg: VapResourceClickEventMessage, callback: (Result<Unit>) -> Unit)
-{
-    val separatedMessageChannelSuffix = if (messageChannelSuffix.isNotEmpty()) ".$messageChannelSuffix" else ""
-    val channelName = "dev.flutter.pigeon.vap_player_platform_interface.VapEventApi.onResourceClick$separatedMessageChannelSuffix"
+    val channelName = "dev.flutter.pigeon.vap_player_platform_interface.VapEventApi.onEvent$separatedMessageChannelSuffix"
     val channel = BasicMessageChannel<Any?>(binaryMessenger, channelName, codec)
     channel.send(listOf(eventArg)) {
       if (it is List<*>) {

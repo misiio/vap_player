@@ -190,6 +190,11 @@ enum VapContentModeMessage: Int {
   case aspectFill = 2
 }
 
+enum VapEventKindMessage: Int {
+  case playback = 0
+  case resourceClick = 1
+}
+
 enum VapPlaybackEventTypeMessage: Int {
   case configReady = 0
   case started = 1
@@ -206,11 +211,10 @@ struct VapPlayRequestMessage: Hashable {
   var sourceType: VapSourceTypeMessage? = nil
   var source: String? = nil
   var assetPackage: String? = nil
-  var repeatCount: Int64? = nil
-  var mute: Bool? = nil
+  var loop: Bool? = nil
+  var muted: Bool? = nil
   var contentMode: VapContentModeMessage? = nil
-  var fps: Int64? = nil
-  var frameEventsEnabled: Bool? = nil
+  var frameEvents: Bool? = nil
   var tagValues: [String?: String?]? = nil
 
 
@@ -220,23 +224,21 @@ struct VapPlayRequestMessage: Hashable {
     let sourceType: VapSourceTypeMessage? = nilOrValue(pigeonVar_list[1])
     let source: String? = nilOrValue(pigeonVar_list[2])
     let assetPackage: String? = nilOrValue(pigeonVar_list[3])
-    let repeatCount: Int64? = nilOrValue(pigeonVar_list[4])
-    let mute: Bool? = nilOrValue(pigeonVar_list[5])
+    let loop: Bool? = nilOrValue(pigeonVar_list[4])
+    let muted: Bool? = nilOrValue(pigeonVar_list[5])
     let contentMode: VapContentModeMessage? = nilOrValue(pigeonVar_list[6])
-    let fps: Int64? = nilOrValue(pigeonVar_list[7])
-    let frameEventsEnabled: Bool? = nilOrValue(pigeonVar_list[8])
-    let tagValues: [String?: String?]? = nilOrValue(pigeonVar_list[9])
+    let frameEvents: Bool? = nilOrValue(pigeonVar_list[7])
+    let tagValues: [String?: String?]? = nilOrValue(pigeonVar_list[8])
 
     return VapPlayRequestMessage(
       viewId: viewId,
       sourceType: sourceType,
       source: source,
       assetPackage: assetPackage,
-      repeatCount: repeatCount,
-      mute: mute,
+      loop: loop,
+      muted: muted,
       contentMode: contentMode,
-      fps: fps,
-      frameEventsEnabled: frameEventsEnabled,
+      frameEvents: frameEvents,
       tagValues: tagValues
     )
   }
@@ -246,11 +248,10 @@ struct VapPlayRequestMessage: Hashable {
       sourceType,
       source,
       assetPackage,
-      repeatCount,
-      mute,
+      loop,
+      muted,
       contentMode,
-      fps,
-      frameEventsEnabled,
+      frameEvents,
       tagValues,
     ]
   }
@@ -258,7 +259,7 @@ struct VapPlayRequestMessage: Hashable {
     if Swift.type(of: lhs) != Swift.type(of: rhs) {
       return false
     }
-    return deepEqualsVapPlayerMessages(lhs.viewId, rhs.viewId) && deepEqualsVapPlayerMessages(lhs.sourceType, rhs.sourceType) && deepEqualsVapPlayerMessages(lhs.source, rhs.source) && deepEqualsVapPlayerMessages(lhs.assetPackage, rhs.assetPackage) && deepEqualsVapPlayerMessages(lhs.repeatCount, rhs.repeatCount) && deepEqualsVapPlayerMessages(lhs.mute, rhs.mute) && deepEqualsVapPlayerMessages(lhs.contentMode, rhs.contentMode) && deepEqualsVapPlayerMessages(lhs.fps, rhs.fps) && deepEqualsVapPlayerMessages(lhs.frameEventsEnabled, rhs.frameEventsEnabled) && deepEqualsVapPlayerMessages(lhs.tagValues, rhs.tagValues)
+    return deepEqualsVapPlayerMessages(lhs.viewId, rhs.viewId) && deepEqualsVapPlayerMessages(lhs.sourceType, rhs.sourceType) && deepEqualsVapPlayerMessages(lhs.source, rhs.source) && deepEqualsVapPlayerMessages(lhs.assetPackage, rhs.assetPackage) && deepEqualsVapPlayerMessages(lhs.loop, rhs.loop) && deepEqualsVapPlayerMessages(lhs.muted, rhs.muted) && deepEqualsVapPlayerMessages(lhs.contentMode, rhs.contentMode) && deepEqualsVapPlayerMessages(lhs.frameEvents, rhs.frameEvents) && deepEqualsVapPlayerMessages(lhs.tagValues, rhs.tagValues)
   }
 
   func hash(into hasher: inout Hasher) {
@@ -267,19 +268,19 @@ struct VapPlayRequestMessage: Hashable {
     deepHashVapPlayerMessages(value: sourceType, hasher: &hasher)
     deepHashVapPlayerMessages(value: source, hasher: &hasher)
     deepHashVapPlayerMessages(value: assetPackage, hasher: &hasher)
-    deepHashVapPlayerMessages(value: repeatCount, hasher: &hasher)
-    deepHashVapPlayerMessages(value: mute, hasher: &hasher)
+    deepHashVapPlayerMessages(value: loop, hasher: &hasher)
+    deepHashVapPlayerMessages(value: muted, hasher: &hasher)
     deepHashVapPlayerMessages(value: contentMode, hasher: &hasher)
-    deepHashVapPlayerMessages(value: fps, hasher: &hasher)
-    deepHashVapPlayerMessages(value: frameEventsEnabled, hasher: &hasher)
+    deepHashVapPlayerMessages(value: frameEvents, hasher: &hasher)
     deepHashVapPlayerMessages(value: tagValues, hasher: &hasher)
   }
 }
 
 /// Generated class from Pigeon that represents data sent in messages.
-struct VapPlaybackEventMessage: Hashable {
+struct VapEventMessage: Hashable {
   var viewId: Int64? = nil
-  var type: VapPlaybackEventTypeMessage? = nil
+  var kind: VapEventKindMessage? = nil
+  var playbackType: VapPlaybackEventTypeMessage? = nil
   var frameIndex: Int64? = nil
   var width: Int64? = nil
   var height: Int64? = nil
@@ -287,36 +288,57 @@ struct VapPlaybackEventMessage: Hashable {
   var isMix: Bool? = nil
   var errorCode: Int64? = nil
   var errorMessage: String? = nil
+  var resourceId: String? = nil
+  var tag: String? = nil
+  var x: Double? = nil
+  var y: Double? = nil
+  var resourceWidth: Double? = nil
+  var resourceHeight: Double? = nil
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
-  static func fromList(_ pigeonVar_list: [Any?]) -> VapPlaybackEventMessage? {
+  static func fromList(_ pigeonVar_list: [Any?]) -> VapEventMessage? {
     let viewId: Int64? = nilOrValue(pigeonVar_list[0])
-    let type: VapPlaybackEventTypeMessage? = nilOrValue(pigeonVar_list[1])
-    let frameIndex: Int64? = nilOrValue(pigeonVar_list[2])
-    let width: Int64? = nilOrValue(pigeonVar_list[3])
-    let height: Int64? = nilOrValue(pigeonVar_list[4])
-    let fps: Int64? = nilOrValue(pigeonVar_list[5])
-    let isMix: Bool? = nilOrValue(pigeonVar_list[6])
-    let errorCode: Int64? = nilOrValue(pigeonVar_list[7])
-    let errorMessage: String? = nilOrValue(pigeonVar_list[8])
+    let kind: VapEventKindMessage? = nilOrValue(pigeonVar_list[1])
+    let playbackType: VapPlaybackEventTypeMessage? = nilOrValue(pigeonVar_list[2])
+    let frameIndex: Int64? = nilOrValue(pigeonVar_list[3])
+    let width: Int64? = nilOrValue(pigeonVar_list[4])
+    let height: Int64? = nilOrValue(pigeonVar_list[5])
+    let fps: Int64? = nilOrValue(pigeonVar_list[6])
+    let isMix: Bool? = nilOrValue(pigeonVar_list[7])
+    let errorCode: Int64? = nilOrValue(pigeonVar_list[8])
+    let errorMessage: String? = nilOrValue(pigeonVar_list[9])
+    let resourceId: String? = nilOrValue(pigeonVar_list[10])
+    let tag: String? = nilOrValue(pigeonVar_list[11])
+    let x: Double? = nilOrValue(pigeonVar_list[12])
+    let y: Double? = nilOrValue(pigeonVar_list[13])
+    let resourceWidth: Double? = nilOrValue(pigeonVar_list[14])
+    let resourceHeight: Double? = nilOrValue(pigeonVar_list[15])
 
-    return VapPlaybackEventMessage(
+    return VapEventMessage(
       viewId: viewId,
-      type: type,
+      kind: kind,
+      playbackType: playbackType,
       frameIndex: frameIndex,
       width: width,
       height: height,
       fps: fps,
       isMix: isMix,
       errorCode: errorCode,
-      errorMessage: errorMessage
+      errorMessage: errorMessage,
+      resourceId: resourceId,
+      tag: tag,
+      x: x,
+      y: y,
+      resourceWidth: resourceWidth,
+      resourceHeight: resourceHeight
     )
   }
   func toList() -> [Any?] {
     return [
       viewId,
-      type,
+      kind,
+      playbackType,
       frameIndex,
       width,
       height,
@@ -324,19 +346,26 @@ struct VapPlaybackEventMessage: Hashable {
       isMix,
       errorCode,
       errorMessage,
+      resourceId,
+      tag,
+      x,
+      y,
+      resourceWidth,
+      resourceHeight,
     ]
   }
-  static func == (lhs: VapPlaybackEventMessage, rhs: VapPlaybackEventMessage) -> Bool {
+  static func == (lhs: VapEventMessage, rhs: VapEventMessage) -> Bool {
     if Swift.type(of: lhs) != Swift.type(of: rhs) {
       return false
     }
-    return deepEqualsVapPlayerMessages(lhs.viewId, rhs.viewId) && deepEqualsVapPlayerMessages(lhs.type, rhs.type) && deepEqualsVapPlayerMessages(lhs.frameIndex, rhs.frameIndex) && deepEqualsVapPlayerMessages(lhs.width, rhs.width) && deepEqualsVapPlayerMessages(lhs.height, rhs.height) && deepEqualsVapPlayerMessages(lhs.fps, rhs.fps) && deepEqualsVapPlayerMessages(lhs.isMix, rhs.isMix) && deepEqualsVapPlayerMessages(lhs.errorCode, rhs.errorCode) && deepEqualsVapPlayerMessages(lhs.errorMessage, rhs.errorMessage)
+    return deepEqualsVapPlayerMessages(lhs.viewId, rhs.viewId) && deepEqualsVapPlayerMessages(lhs.kind, rhs.kind) && deepEqualsVapPlayerMessages(lhs.playbackType, rhs.playbackType) && deepEqualsVapPlayerMessages(lhs.frameIndex, rhs.frameIndex) && deepEqualsVapPlayerMessages(lhs.width, rhs.width) && deepEqualsVapPlayerMessages(lhs.height, rhs.height) && deepEqualsVapPlayerMessages(lhs.fps, rhs.fps) && deepEqualsVapPlayerMessages(lhs.isMix, rhs.isMix) && deepEqualsVapPlayerMessages(lhs.errorCode, rhs.errorCode) && deepEqualsVapPlayerMessages(lhs.errorMessage, rhs.errorMessage) && deepEqualsVapPlayerMessages(lhs.resourceId, rhs.resourceId) && deepEqualsVapPlayerMessages(lhs.tag, rhs.tag) && deepEqualsVapPlayerMessages(lhs.x, rhs.x) && deepEqualsVapPlayerMessages(lhs.y, rhs.y) && deepEqualsVapPlayerMessages(lhs.resourceWidth, rhs.resourceWidth) && deepEqualsVapPlayerMessages(lhs.resourceHeight, rhs.resourceHeight)
   }
 
   func hash(into hasher: inout Hasher) {
-    hasher.combine("VapPlaybackEventMessage")
+    hasher.combine("VapEventMessage")
     deepHashVapPlayerMessages(value: viewId, hasher: &hasher)
-    deepHashVapPlayerMessages(value: type, hasher: &hasher)
+    deepHashVapPlayerMessages(value: kind, hasher: &hasher)
+    deepHashVapPlayerMessages(value: playbackType, hasher: &hasher)
     deepHashVapPlayerMessages(value: frameIndex, hasher: &hasher)
     deepHashVapPlayerMessages(value: width, hasher: &hasher)
     deepHashVapPlayerMessages(value: height, hasher: &hasher)
@@ -344,67 +373,12 @@ struct VapPlaybackEventMessage: Hashable {
     deepHashVapPlayerMessages(value: isMix, hasher: &hasher)
     deepHashVapPlayerMessages(value: errorCode, hasher: &hasher)
     deepHashVapPlayerMessages(value: errorMessage, hasher: &hasher)
-  }
-}
-
-/// Generated class from Pigeon that represents data sent in messages.
-struct VapResourceClickEventMessage: Hashable {
-  var viewId: Int64? = nil
-  var resourceId: String? = nil
-  var tag: String? = nil
-  var x: Double? = nil
-  var y: Double? = nil
-  var width: Double? = nil
-  var height: Double? = nil
-
-
-  // swift-format-ignore: AlwaysUseLowerCamelCase
-  static func fromList(_ pigeonVar_list: [Any?]) -> VapResourceClickEventMessage? {
-    let viewId: Int64? = nilOrValue(pigeonVar_list[0])
-    let resourceId: String? = nilOrValue(pigeonVar_list[1])
-    let tag: String? = nilOrValue(pigeonVar_list[2])
-    let x: Double? = nilOrValue(pigeonVar_list[3])
-    let y: Double? = nilOrValue(pigeonVar_list[4])
-    let width: Double? = nilOrValue(pigeonVar_list[5])
-    let height: Double? = nilOrValue(pigeonVar_list[6])
-
-    return VapResourceClickEventMessage(
-      viewId: viewId,
-      resourceId: resourceId,
-      tag: tag,
-      x: x,
-      y: y,
-      width: width,
-      height: height
-    )
-  }
-  func toList() -> [Any?] {
-    return [
-      viewId,
-      resourceId,
-      tag,
-      x,
-      y,
-      width,
-      height,
-    ]
-  }
-  static func == (lhs: VapResourceClickEventMessage, rhs: VapResourceClickEventMessage) -> Bool {
-    if Swift.type(of: lhs) != Swift.type(of: rhs) {
-      return false
-    }
-    return deepEqualsVapPlayerMessages(lhs.viewId, rhs.viewId) && deepEqualsVapPlayerMessages(lhs.resourceId, rhs.resourceId) && deepEqualsVapPlayerMessages(lhs.tag, rhs.tag) && deepEqualsVapPlayerMessages(lhs.x, rhs.x) && deepEqualsVapPlayerMessages(lhs.y, rhs.y) && deepEqualsVapPlayerMessages(lhs.width, rhs.width) && deepEqualsVapPlayerMessages(lhs.height, rhs.height)
-  }
-
-  func hash(into hasher: inout Hasher) {
-    hasher.combine("VapResourceClickEventMessage")
-    deepHashVapPlayerMessages(value: viewId, hasher: &hasher)
     deepHashVapPlayerMessages(value: resourceId, hasher: &hasher)
     deepHashVapPlayerMessages(value: tag, hasher: &hasher)
     deepHashVapPlayerMessages(value: x, hasher: &hasher)
     deepHashVapPlayerMessages(value: y, hasher: &hasher)
-    deepHashVapPlayerMessages(value: width, hasher: &hasher)
-    deepHashVapPlayerMessages(value: height, hasher: &hasher)
+    deepHashVapPlayerMessages(value: resourceWidth, hasher: &hasher)
+    deepHashVapPlayerMessages(value: resourceHeight, hasher: &hasher)
   }
 }
 
@@ -510,6 +484,42 @@ struct VapImageResolveResultMessage: Hashable {
   }
 }
 
+/// Generated class from Pigeon that represents data sent in messages.
+struct VapNetworkCacheInfoMessage: Hashable {
+  var sizeBytes: Int64? = nil
+  var maxBytes: Int64? = nil
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> VapNetworkCacheInfoMessage? {
+    let sizeBytes: Int64? = nilOrValue(pigeonVar_list[0])
+    let maxBytes: Int64? = nilOrValue(pigeonVar_list[1])
+
+    return VapNetworkCacheInfoMessage(
+      sizeBytes: sizeBytes,
+      maxBytes: maxBytes
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      sizeBytes,
+      maxBytes,
+    ]
+  }
+  static func == (lhs: VapNetworkCacheInfoMessage, rhs: VapNetworkCacheInfoMessage) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return deepEqualsVapPlayerMessages(lhs.sizeBytes, rhs.sizeBytes) && deepEqualsVapPlayerMessages(lhs.maxBytes, rhs.maxBytes)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("VapNetworkCacheInfoMessage")
+    deepHashVapPlayerMessages(value: sizeBytes, hasher: &hasher)
+    deepHashVapPlayerMessages(value: maxBytes, hasher: &hasher)
+  }
+}
+
 private class VapPlayerMessagesPigeonCodecReader: FlutterStandardReader {
   override func readValue(ofType type: UInt8) -> Any? {
     switch type {
@@ -528,19 +538,25 @@ private class VapPlayerMessagesPigeonCodecReader: FlutterStandardReader {
     case 131:
       let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
       if let enumResultAsInt = enumResultAsInt {
-        return VapPlaybackEventTypeMessage(rawValue: enumResultAsInt)
+        return VapEventKindMessage(rawValue: enumResultAsInt)
       }
       return nil
     case 132:
-      return VapPlayRequestMessage.fromList(self.readValue() as! [Any?])
+      let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
+      if let enumResultAsInt = enumResultAsInt {
+        return VapPlaybackEventTypeMessage(rawValue: enumResultAsInt)
+      }
+      return nil
     case 133:
-      return VapPlaybackEventMessage.fromList(self.readValue() as! [Any?])
+      return VapPlayRequestMessage.fromList(self.readValue() as! [Any?])
     case 134:
-      return VapResourceClickEventMessage.fromList(self.readValue() as! [Any?])
+      return VapEventMessage.fromList(self.readValue() as! [Any?])
     case 135:
       return VapImageResolveRequestMessage.fromList(self.readValue() as! [Any?])
     case 136:
       return VapImageResolveResultMessage.fromList(self.readValue() as! [Any?])
+    case 137:
+      return VapNetworkCacheInfoMessage.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
     }
@@ -555,16 +571,16 @@ private class VapPlayerMessagesPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? VapContentModeMessage {
       super.writeByte(130)
       super.writeValue(value.rawValue)
-    } else if let value = value as? VapPlaybackEventTypeMessage {
+    } else if let value = value as? VapEventKindMessage {
       super.writeByte(131)
       super.writeValue(value.rawValue)
-    } else if let value = value as? VapPlayRequestMessage {
+    } else if let value = value as? VapPlaybackEventTypeMessage {
       super.writeByte(132)
-      super.writeValue(value.toList())
-    } else if let value = value as? VapPlaybackEventMessage {
+      super.writeValue(value.rawValue)
+    } else if let value = value as? VapPlayRequestMessage {
       super.writeByte(133)
       super.writeValue(value.toList())
-    } else if let value = value as? VapResourceClickEventMessage {
+    } else if let value = value as? VapEventMessage {
       super.writeByte(134)
       super.writeValue(value.toList())
     } else if let value = value as? VapImageResolveRequestMessage {
@@ -572,6 +588,9 @@ private class VapPlayerMessagesPigeonCodecWriter: FlutterStandardWriter {
       super.writeValue(value.toList())
     } else if let value = value as? VapImageResolveResultMessage {
       super.writeByte(136)
+      super.writeValue(value.toList())
+    } else if let value = value as? VapNetworkCacheInfoMessage {
+      super.writeByte(137)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -598,15 +617,10 @@ class VapPlayerMessagesPigeonCodec: FlutterStandardMessageCodec, @unchecked Send
 protocol VapHostApi {
   func play(request: VapPlayRequestMessage) throws
   func stop(viewId: Int64) throws
-  func setMute(viewId: Int64, mute: Bool) throws
-  func setContentMode(viewId: Int64, mode: VapContentModeMessage) throws
-  func setFrameEventsEnabled(viewId: Int64, enabled: Bool) throws
   func dispose(viewId: Int64) throws
-  func getNetworkCacheSizeBytes(completion: @escaping (Result<Int64, Error>) -> Void)
+  func getNetworkCacheInfo(completion: @escaping (Result<VapNetworkCacheInfoMessage, Error>) -> Void)
   func clearNetworkCache() throws
-  func pruneNetworkCacheToBytes(maxBytes: Int64) throws
-  func getNetworkAutoEvictionMaxBytes(completion: @escaping (Result<Int64, Error>) -> Void)
-  func setNetworkAutoEvictionMaxBytes(maxBytes: Int64) throws
+  func setNetworkCacheMaxBytes(maxBytes: Int64) throws
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -645,54 +659,6 @@ class VapHostApiSetup {
     } else {
       stopChannel.setMessageHandler(nil)
     }
-    let setMuteChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setMute\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
-    if let api = api {
-      setMuteChannel.setMessageHandler { message, reply in
-        let args = message as! [Any?]
-        let viewIdArg = args[0] as! Int64
-        let muteArg = args[1] as! Bool
-        do {
-          try api.setMute(viewId: viewIdArg, mute: muteArg)
-          reply(wrapResult(nil))
-        } catch {
-          reply(wrapError(error))
-        }
-      }
-    } else {
-      setMuteChannel.setMessageHandler(nil)
-    }
-    let setContentModeChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setContentMode\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
-    if let api = api {
-      setContentModeChannel.setMessageHandler { message, reply in
-        let args = message as! [Any?]
-        let viewIdArg = args[0] as! Int64
-        let modeArg = args[1] as! VapContentModeMessage
-        do {
-          try api.setContentMode(viewId: viewIdArg, mode: modeArg)
-          reply(wrapResult(nil))
-        } catch {
-          reply(wrapError(error))
-        }
-      }
-    } else {
-      setContentModeChannel.setMessageHandler(nil)
-    }
-    let setFrameEventsEnabledChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setFrameEventsEnabled\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
-    if let api = api {
-      setFrameEventsEnabledChannel.setMessageHandler { message, reply in
-        let args = message as! [Any?]
-        let viewIdArg = args[0] as! Int64
-        let enabledArg = args[1] as! Bool
-        do {
-          try api.setFrameEventsEnabled(viewId: viewIdArg, enabled: enabledArg)
-          reply(wrapResult(nil))
-        } catch {
-          reply(wrapError(error))
-        }
-      }
-    } else {
-      setFrameEventsEnabledChannel.setMessageHandler(nil)
-    }
     let disposeChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.dispose\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       disposeChannel.setMessageHandler { message, reply in
@@ -708,10 +674,10 @@ class VapHostApiSetup {
     } else {
       disposeChannel.setMessageHandler(nil)
     }
-    let getNetworkCacheSizeBytesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.getNetworkCacheSizeBytes\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let getNetworkCacheInfoChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.getNetworkCacheInfo\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
-      getNetworkCacheSizeBytesChannel.setMessageHandler { _, reply in
-        api.getNetworkCacheSizeBytes { result in
+      getNetworkCacheInfoChannel.setMessageHandler { _, reply in
+        api.getNetworkCacheInfo { result in
           switch result {
           case .success(let res):
             reply(wrapResult(res))
@@ -721,7 +687,7 @@ class VapHostApiSetup {
         }
       }
     } else {
-      getNetworkCacheSizeBytesChannel.setMessageHandler(nil)
+      getNetworkCacheInfoChannel.setMessageHandler(nil)
     }
     let clearNetworkCacheChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.clearNetworkCache\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
@@ -736,57 +702,26 @@ class VapHostApiSetup {
     } else {
       clearNetworkCacheChannel.setMessageHandler(nil)
     }
-    let pruneNetworkCacheToBytesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.pruneNetworkCacheToBytes\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    let setNetworkCacheMaxBytesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setNetworkCacheMaxBytes\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
-      pruneNetworkCacheToBytesChannel.setMessageHandler { message, reply in
+      setNetworkCacheMaxBytesChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
         let maxBytesArg = args[0] as! Int64
         do {
-          try api.pruneNetworkCacheToBytes(maxBytes: maxBytesArg)
+          try api.setNetworkCacheMaxBytes(maxBytes: maxBytesArg)
           reply(wrapResult(nil))
         } catch {
           reply(wrapError(error))
         }
       }
     } else {
-      pruneNetworkCacheToBytesChannel.setMessageHandler(nil)
-    }
-    let getNetworkAutoEvictionMaxBytesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.getNetworkAutoEvictionMaxBytes\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
-    if let api = api {
-      getNetworkAutoEvictionMaxBytesChannel.setMessageHandler { _, reply in
-        api.getNetworkAutoEvictionMaxBytes { result in
-          switch result {
-          case .success(let res):
-            reply(wrapResult(res))
-          case .failure(let error):
-            reply(wrapError(error))
-          }
-        }
-      }
-    } else {
-      getNetworkAutoEvictionMaxBytesChannel.setMessageHandler(nil)
-    }
-    let setNetworkAutoEvictionMaxBytesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.vap_player_platform_interface.VapHostApi.setNetworkAutoEvictionMaxBytes\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
-    if let api = api {
-      setNetworkAutoEvictionMaxBytesChannel.setMessageHandler { message, reply in
-        let args = message as! [Any?]
-        let maxBytesArg = args[0] as! Int64
-        do {
-          try api.setNetworkAutoEvictionMaxBytes(maxBytes: maxBytesArg)
-          reply(wrapResult(nil))
-        } catch {
-          reply(wrapError(error))
-        }
-      }
-    } else {
-      setNetworkAutoEvictionMaxBytesChannel.setMessageHandler(nil)
+      setNetworkCacheMaxBytesChannel.setMessageHandler(nil)
     }
   }
 }
 /// Generated protocol from Pigeon that represents Flutter messages that can be called from Swift.
 protocol VapEventApiProtocol {
-  func onPlaybackEvent(event eventArg: VapPlaybackEventMessage, completion: @escaping (Result<Void, PigeonError>) -> Void)
-  func onResourceClick(event eventArg: VapResourceClickEventMessage, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onEvent(event eventArg: VapEventMessage, completion: @escaping (Result<Void, PigeonError>) -> Void)
 }
 class VapEventApi: VapEventApiProtocol {
   private let binaryMessenger: FlutterBinaryMessenger
@@ -798,26 +733,8 @@ class VapEventApi: VapEventApiProtocol {
   var codec: VapPlayerMessagesPigeonCodec {
     return VapPlayerMessagesPigeonCodec.shared
   }
-  func onPlaybackEvent(event eventArg: VapPlaybackEventMessage, completion: @escaping (Result<Void, PigeonError>) -> Void) {
-    let channelName: String = "dev.flutter.pigeon.vap_player_platform_interface.VapEventApi.onPlaybackEvent\(messageChannelSuffix)"
-    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
-    channel.sendMessage([eventArg] as [Any?]) { response in
-      guard let listResponse = response as? [Any?] else {
-        completion(.failure(createConnectionError(withChannelName: channelName)))
-        return
-      }
-      if listResponse.count > 1 {
-        let code: String = listResponse[0] as! String
-        let message: String? = nilOrValue(listResponse[1])
-        let details: String? = nilOrValue(listResponse[2])
-        completion(.failure(PigeonError(code: code, message: message, details: details)))
-      } else {
-        completion(.success(()))
-      }
-    }
-  }
-  func onResourceClick(event eventArg: VapResourceClickEventMessage, completion: @escaping (Result<Void, PigeonError>) -> Void) {
-    let channelName: String = "dev.flutter.pigeon.vap_player_platform_interface.VapEventApi.onResourceClick\(messageChannelSuffix)"
+  func onEvent(event eventArg: VapEventMessage, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.vap_player_platform_interface.VapEventApi.onEvent\(messageChannelSuffix)"
     let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
     channel.sendMessage([eventArg] as [Any?]) { response in
       guard let listResponse = response as? [Any?] else {

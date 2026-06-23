@@ -1,30 +1,28 @@
-import 'package:vap_player_platform_interface/vap_player_platform_interface.dart';
+import 'package:vap_player_platform_interface/vap_player_platform_interface.dart'
+    as platform;
 
-/// Process-wide network cache controls for vap_player.
+import 'vap_models.dart';
+
 abstract final class VapNetworkCache {
-  static Future<int> sizeBytes() {
-    return VapPlayerPlatform.instance.getNetworkCacheSizeBytes();
+  static Future<VapNetworkCacheInfo> info() async {
+    final platform.VapPlatformNetworkCacheInfo info = await platform
+        .VapPlayerPlatform
+        .instance
+        .getNetworkCacheInfo();
+    return VapNetworkCacheInfo(
+      sizeBytes: info.sizeBytes,
+      maxBytes: info.maxBytes,
+    );
   }
 
   static Future<void> clear() {
-    return VapPlayerPlatform.instance.clearNetworkCache();
+    return platform.VapPlayerPlatform.instance.clearNetworkCache();
   }
 
-  static Future<void> pruneToBytes(int maxBytes) {
-    if (maxBytes < 0) {
-      throw ArgumentError.value(maxBytes, 'maxBytes', 'must be >= 0');
+  static Future<void> setMaxBytes(int bytes) {
+    if (bytes < 0) {
+      throw ArgumentError.value(bytes, 'bytes', 'must be >= 0');
     }
-    return VapPlayerPlatform.instance.pruneNetworkCacheToBytes(maxBytes);
-  }
-
-  static Future<int> autoEvictionMaxBytes() {
-    return VapPlayerPlatform.instance.getNetworkAutoEvictionMaxBytes();
-  }
-
-  static Future<void> setAutoEvictionMaxBytes(int maxBytes) {
-    if (maxBytes < 0) {
-      throw ArgumentError.value(maxBytes, 'maxBytes', 'must be >= 0');
-    }
-    return VapPlayerPlatform.instance.setNetworkAutoEvictionMaxBytes(maxBytes);
+    return platform.VapPlayerPlatform.instance.setNetworkCacheMaxBytes(bytes);
   }
 }

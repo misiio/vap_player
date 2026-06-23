@@ -51,52 +51,28 @@ public final class VapPlayerIosPlugin: NSObject, FlutterPlugin, VapHostApi {
     try requireView(viewId: viewId).stop()
   }
 
-  func setMute(viewId: Int64, mute: Bool) throws {
-    try requireView(viewId: viewId).setMute(mute)
-  }
-
-  func setContentMode(viewId: Int64, mode: VapContentModeMessage) throws {
-    try requireView(viewId: viewId).setContentMode(mode)
-  }
-
-  func setFrameEventsEnabled(viewId: Int64, enabled: Bool) throws {
-    try requireView(viewId: viewId).setFrameEventsEnabled(enabled)
-  }
-
   func dispose(viewId: Int64) throws {
     let view = try requireView(viewId: viewId)
     view.release()
     removePlatformView(viewId: viewId)
   }
 
-  func getNetworkCacheSizeBytes(completion: @escaping (Result<Int64, Error>) -> Void) {
-    completion(.success(VapNetworkCacheUtils.networkCacheSizeBytes()))
+  func getNetworkCacheInfo(completion: @escaping (Result<VapNetworkCacheInfoMessage, Error>) -> Void) {
+    completion(.success(VapNetworkCacheInfoMessage(
+      sizeBytes: VapNetworkCacheUtils.networkCacheSizeBytes(),
+      maxBytes: VapNetworkCacheUtils.autoEvictionMaxBytes()
+    )))
   }
 
   func clearNetworkCache() throws {
     try VapNetworkCacheUtils.clearNetworkCache()
   }
 
-  func pruneNetworkCacheToBytes(maxBytes: Int64) throws {
+  func setNetworkCacheMaxBytes(maxBytes: Int64) throws {
     if maxBytes < 0 {
       throw PigeonError(
         code: "invalid-args",
-        message: "pruneNetworkCacheToBytes requires maxBytes >= 0",
-        details: nil
-      )
-    }
-    try VapNetworkCacheUtils.pruneNetworkCacheToBytes(maxBytes: maxBytes, protectedFileURL: nil)
-  }
-
-  func getNetworkAutoEvictionMaxBytes(completion: @escaping (Result<Int64, Error>) -> Void) {
-    completion(.success(VapNetworkCacheUtils.autoEvictionMaxBytes()))
-  }
-
-  func setNetworkAutoEvictionMaxBytes(maxBytes: Int64) throws {
-    if maxBytes < 0 {
-      throw PigeonError(
-        code: "invalid-args",
-        message: "setNetworkAutoEvictionMaxBytes requires maxBytes >= 0",
+        message: "setNetworkCacheMaxBytes requires maxBytes >= 0",
         details: nil
       )
     }
@@ -195,14 +171,15 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
         let info = source?.sourceInfo
         let rect = source?.frame ?? .zero
         self.emitResourceClick(
-          VapResourceClickEventMessage(
+          VapEventMessage(
             viewId: self.viewId,
+            kind: .resourceClick,
             resourceId: Self.fallbackResourceId(for: info?.contentTag),
             tag: info?.contentTag,
             x: rect.origin.x,
             y: rect.origin.y,
-            width: rect.size.width,
-            height: rect.size.height
+            resourceWidth: rect.size.width,
+            resourceHeight: rect.size.height
           )
         )
       }
@@ -219,13 +196,12 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
     }
 
     tagValues = sanitizeTagValues(request.tagValues)
-    frameEventsEnabled = request.frameEventsEnabled ?? false
+    frameEventsEnabled = request.frameEvents ?? false
     let requestToken = invalidatePendingNetworkPlayback()
 
-    let repeatCount = Int(request.repeatCount ?? 0)
+    let repeatCount = request.loop == true ? -1 : 0
     setContentMode(request.contentMode ?? .scaleToFill)
-    setMute(request.mute ?? false)
-    applyRequestedFpsHint(request.fps)
+    setMute(request.muted ?? false)
 
     switch request.sourceType ?? .file {
     case .file:
@@ -253,9 +229,10 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
     runOnMain {
       self.wrapView.stopHWDMP4()
       self.emitPlayback(
-        VapPlaybackEventMessage(
+        VapEventMessage(
           viewId: self.viewId,
-          type: .stopped
+          kind: .playback,
+          playbackType: .stopped
         )
       )
     }
@@ -280,10 +257,6 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
     }
   }
 
-  func setFrameEventsEnabled(_ enabled: Bool) {
-    frameEventsEnabled = enabled
-  }
-
   func release() {
     if released {
       return
@@ -303,9 +276,10 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
     let fps = info?.fps ?? 0
     let isMix = info?.isMerged ?? false
     emitPlayback(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId: viewId,
-        type: .configReady,
+        kind: .playback,
+        playbackType: .configReady,
         width: Int64(size.width),
         height: Int64(size.height),
         fps: Int64(fps),
@@ -318,9 +292,10 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
   @objc(vapWrap_viewDidStartPlayMP4:)
   func vapWrap_viewDidStartPlayMP4(_ container: UIView) {
     emitPlayback(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId: viewId,
-        type: .started
+        kind: .playback,
+        playbackType: .started
       )
     )
   }
@@ -329,9 +304,10 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
   func vapWrap_viewDidPlayMP4(at frame: QGMP4AnimatedImageFrame, view container: UIView) {
     guard frameEventsEnabled else { return }
     emitPlayback(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId: viewId,
-        type: .frame,
+        kind: .playback,
+        playbackType: .frame,
         frameIndex: Int64(frame.frameIndex)
       )
     )
@@ -340,9 +316,10 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
   @objc(vapWrap_viewDidStopPlayMP4:view:)
   func vapWrap_viewDidStopPlayMP4(_ lastFrameIndex: Int, view container: UIView) {
     emitPlayback(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId: viewId,
-        type: .stopped,
+        kind: .playback,
+        playbackType: .stopped,
         frameIndex: Int64(lastFrameIndex)
       )
     )
@@ -351,9 +328,10 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
   @objc(vapWrap_viewDidFinishPlayMP4:view:)
   func vapWrap_viewDidFinishPlayMP4(_ totalFrameCount: Int, view container: UIView) {
     emitPlayback(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId: viewId,
-        type: .complete,
+        kind: .playback,
+        playbackType: .complete,
         frameIndex: Int64(totalFrameCount)
       )
     )
@@ -363,9 +341,10 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
   func vapWrap_viewDidFailPlayMP4(_ error: Error) {
     let nsError = error as NSError
     emitPlayback(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId: viewId,
-        type: .failed,
+        kind: .playback,
+        playbackType: .failed,
         errorCode: Int64(nsError.code),
         errorMessage: nsError.localizedDescription
       )
@@ -569,9 +548,10 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
 
   private func emitNetworkFailure(code: Int64, message: String) {
     emitPlayback(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId: viewId,
-        type: .failed,
+        kind: .playback,
+        playbackType: .failed,
         errorCode: code,
         errorMessage: message
       )
@@ -644,12 +624,12 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
     return digest.map { byte in String(format: "%02x", byte) }.joined()
   }
 
-  private func emitPlayback(_ event: VapPlaybackEventMessage) {
-    eventApi.onPlaybackEvent(event: event) { _ in }
+  private func emitPlayback(_ event: VapEventMessage) {
+    eventApi.onEvent(event: event) { _ in }
   }
 
-  private func emitResourceClick(_ event: VapResourceClickEventMessage) {
-    eventApi.onResourceClick(event: event) { _ in }
+  private func emitResourceClick(_ event: VapEventMessage) {
+    eventApi.onEvent(event: event) { _ in }
   }
 
   static func fallbackResourceId(for tag: String?) -> String {
@@ -658,16 +638,6 @@ final class VapPlayerPlatformView: NSObject, FlutterPlatformView, VAPWrapViewDel
 
   static func resolveTextValue(for tag: String, values: [String: String]) -> String {
     values[tag] ?? tag
-  }
-
-  private func applyRequestedFpsHint(_ fps: Int64?) {
-    guard let fps, fps > 0 else {
-      return
-    }
-    // QGVAPWrapView exposes play APIs with repeat count but no fps parameter.
-    // The lower-level UIView fps APIs in Tencent VAP are deprecated, so this plugin
-    // keeps using the safe wrap-view path and currently treats requested fps as a hint.
-    _ = fps
   }
 
   private func sanitizeTagValues(_ input: [String?: String?]?) -> [String: String] {

@@ -19,33 +19,21 @@ abstract class VapPlayerPlatform extends PlatformInterface {
     _instance = instance;
   }
 
-  Stream<VapPlaybackEvent> get playbackEvents;
+  Stream<VapPlatformEvent> get events;
 
-  Stream<VapResourceClickEvent> get clickEvents;
+  void setImageResolver(int viewId, VapPlatformImageResolver? resolver);
 
-  void setImageResolver(int viewId, VapImageResolver? resolver);
-
-  Future<void> play(VapPlayRequest request);
+  Future<void> play(VapPlatformPlayRequest request);
 
   Future<void> stop(int viewId);
 
-  Future<void> setMute(int viewId, bool mute);
-
-  Future<void> setContentMode(int viewId, VapContentMode mode);
-
-  Future<void> setFrameEventsEnabled(int viewId, bool enabled);
-
   Future<void> dispose(int viewId);
 
-  Future<int> getNetworkCacheSizeBytes();
+  Future<VapPlatformNetworkCacheInfo> getNetworkCacheInfo();
 
   Future<void> clearNetworkCache();
 
-  Future<void> pruneNetworkCacheToBytes(int maxBytes);
-
-  Future<int> getNetworkAutoEvictionMaxBytes();
-
-  Future<void> setNetworkAutoEvictionMaxBytes(int maxBytes);
+  Future<void> setNetworkCacheMaxBytes(int maxBytes);
 }
 
 class PigeonVapPlayerPlatform extends VapPlayerPlatform {
@@ -56,23 +44,17 @@ class PigeonVapPlayerPlatform extends VapPlayerPlatform {
   }
 
   final VapHostApi _hostApi;
-  final Map<int, VapImageResolver> _imageResolvers = <int, VapImageResolver>{};
+  final Map<int, VapPlatformImageResolver> _imageResolvers =
+      <int, VapPlatformImageResolver>{};
 
-  final StreamController<VapPlaybackEvent> _playbackEventsController =
-      StreamController<VapPlaybackEvent>.broadcast();
-  final StreamController<VapResourceClickEvent> _clickEventsController =
-      StreamController<VapResourceClickEvent>.broadcast();
-
-  @override
-  Stream<VapPlaybackEvent> get playbackEvents =>
-      _playbackEventsController.stream;
+  final StreamController<VapPlatformEvent> _eventsController =
+      StreamController<VapPlatformEvent>.broadcast();
 
   @override
-  Stream<VapResourceClickEvent> get clickEvents =>
-      _clickEventsController.stream;
+  Stream<VapPlatformEvent> get events => _eventsController.stream;
 
   @override
-  void setImageResolver(int viewId, VapImageResolver? resolver) {
+  void setImageResolver(int viewId, VapPlatformImageResolver? resolver) {
     if (resolver == null) {
       _imageResolvers.remove(viewId);
       return;
@@ -81,7 +63,7 @@ class PigeonVapPlayerPlatform extends VapPlayerPlatform {
   }
 
   @override
-  Future<void> play(VapPlayRequest request) {
+  Future<void> play(VapPlatformPlayRequest request) {
     final Map<String?, String?>? tagValues = request.tagValues.isEmpty
         ? null
         : request.tagValues.map((String key, String value) {
@@ -93,11 +75,10 @@ class PigeonVapPlayerPlatform extends VapPlayerPlatform {
         sourceType: _toSourceTypeMessage(request.sourceType),
         source: request.source,
         assetPackage: request.assetPackage,
-        repeatCount: request.repeatCount,
-        mute: request.mute,
+        loop: request.loop,
+        muted: request.muted,
         contentMode: _toContentModeMessage(request.contentMode),
-        fps: request.fps,
-        frameEventsEnabled: request.frameEventsEnabled,
+        frameEvents: request.frameEvents,
         tagValues: tagValues,
       ),
     );
@@ -109,29 +90,19 @@ class PigeonVapPlayerPlatform extends VapPlayerPlatform {
   }
 
   @override
-  Future<void> setMute(int viewId, bool mute) {
-    return _hostApi.setMute(viewId, mute);
-  }
-
-  @override
-  Future<void> setContentMode(int viewId, VapContentMode mode) {
-    return _hostApi.setContentMode(viewId, _toContentModeMessage(mode));
-  }
-
-  @override
-  Future<void> setFrameEventsEnabled(int viewId, bool enabled) {
-    return _hostApi.setFrameEventsEnabled(viewId, enabled);
-  }
-
-  @override
   Future<void> dispose(int viewId) {
     _imageResolvers.remove(viewId);
     return _hostApi.dispose(viewId);
   }
 
   @override
-  Future<int> getNetworkCacheSizeBytes() {
-    return _hostApi.getNetworkCacheSizeBytes();
+  Future<VapPlatformNetworkCacheInfo> getNetworkCacheInfo() async {
+    final VapNetworkCacheInfoMessage info = await _hostApi
+        .getNetworkCacheInfo();
+    return VapPlatformNetworkCacheInfo(
+      sizeBytes: info.sizeBytes ?? 0,
+      maxBytes: info.maxBytes ?? 0,
+    );
   }
 
   @override
@@ -140,57 +111,49 @@ class PigeonVapPlayerPlatform extends VapPlayerPlatform {
   }
 
   @override
-  Future<void> pruneNetworkCacheToBytes(int maxBytes) {
-    return _hostApi.pruneNetworkCacheToBytes(maxBytes);
+  Future<void> setNetworkCacheMaxBytes(int maxBytes) {
+    return _hostApi.setNetworkCacheMaxBytes(maxBytes);
   }
 
-  @override
-  Future<int> getNetworkAutoEvictionMaxBytes() {
-    return _hostApi.getNetworkAutoEvictionMaxBytes();
-  }
-
-  @override
-  Future<void> setNetworkAutoEvictionMaxBytes(int maxBytes) {
-    return _hostApi.setNetworkAutoEvictionMaxBytes(maxBytes);
-  }
-
-  void addPlaybackEvent(VapPlaybackEventMessage event) {
-    _playbackEventsController.add(
-      VapPlaybackEvent(
-        viewId: event.viewId ?? -1,
-        type: _fromPlaybackEventTypeMessage(
-          event.type ?? VapPlaybackEventTypeMessage.failed,
-        ),
-        frameIndex: event.frameIndex,
-        width: event.width,
-        height: event.height,
-        fps: event.fps,
-        isMix: event.isMix,
-        errorCode: event.errorCode,
-        errorMessage: event.errorMessage,
-      ),
-    );
-  }
-
-  void addClickEvent(VapResourceClickEventMessage event) {
-    _clickEventsController.add(
-      VapResourceClickEvent(
-        viewId: event.viewId ?? -1,
-        resourceId: event.resourceId,
-        tag: event.tag,
-        x: event.x,
-        y: event.y,
-        width: event.width,
-        height: event.height,
-      ),
-    );
+  void addEvent(VapEventMessage event) {
+    final int viewId = event.viewId ?? -1;
+    switch (event.kind ?? VapEventKindMessage.playback) {
+      case VapEventKindMessage.playback:
+        _eventsController.add(
+          VapPlatformPlaybackEvent(
+            viewId: viewId,
+            type: _fromPlaybackEventTypeMessage(
+              event.playbackType ?? VapPlaybackEventTypeMessage.failed,
+            ),
+            frameIndex: event.frameIndex,
+            width: event.width,
+            height: event.height,
+            fps: event.fps,
+            isMix: event.isMix,
+            errorCode: event.errorCode,
+            errorMessage: event.errorMessage,
+          ),
+        );
+      case VapEventKindMessage.resourceClick:
+        _eventsController.add(
+          VapPlatformResourceClickEvent(
+            viewId: viewId,
+            resourceId: event.resourceId,
+            tag: event.tag,
+            x: event.x,
+            y: event.y,
+            width: event.resourceWidth,
+            height: event.resourceHeight,
+          ),
+        );
+    }
   }
 
   Future<VapImageResolveResultMessage> resolveImage(
     VapImageResolveRequestMessage request,
   ) async {
     final int viewId = request.viewId ?? -1;
-    final VapImageResolver? resolver = _imageResolvers[viewId];
+    final VapPlatformImageResolver? resolver = _imageResolvers[viewId];
     if (resolver == null) {
       return VapImageResolveResultMessage(
         imageBytes: null,
@@ -200,7 +163,7 @@ class PigeonVapPlayerPlatform extends VapPlayerPlatform {
 
     try {
       final imageBytes = await resolver(
-        VapImageResolveRequest(
+        VapPlatformImageResolveRequest(
           viewId: viewId,
           resourceId: request.resourceId ?? '',
           tag: request.tag ?? '',
@@ -220,46 +183,50 @@ class PigeonVapPlayerPlatform extends VapPlayerPlatform {
     }
   }
 
-  static VapSourceTypeMessage _toSourceTypeMessage(VapSourceType sourceType) {
+  static VapSourceTypeMessage _toSourceTypeMessage(
+    VapPlatformSourceType sourceType,
+  ) {
     switch (sourceType) {
-      case VapSourceType.asset:
+      case VapPlatformSourceType.asset:
         return VapSourceTypeMessage.asset;
-      case VapSourceType.file:
+      case VapPlatformSourceType.file:
         return VapSourceTypeMessage.file;
-      case VapSourceType.network:
+      case VapPlatformSourceType.network:
         return VapSourceTypeMessage.network;
     }
   }
 
-  static VapContentModeMessage _toContentModeMessage(VapContentMode mode) {
+  static VapContentModeMessage _toContentModeMessage(
+    VapPlatformContentMode mode,
+  ) {
     switch (mode) {
-      case VapContentMode.scaleToFill:
+      case VapPlatformContentMode.scaleToFill:
         return VapContentModeMessage.scaleToFill;
-      case VapContentMode.aspectFit:
+      case VapPlatformContentMode.aspectFit:
         return VapContentModeMessage.aspectFit;
-      case VapContentMode.aspectFill:
+      case VapPlatformContentMode.aspectFill:
         return VapContentModeMessage.aspectFill;
     }
   }
 
-  static VapPlaybackEventType _fromPlaybackEventTypeMessage(
+  static VapPlatformPlaybackEventType _fromPlaybackEventTypeMessage(
     VapPlaybackEventTypeMessage type,
   ) {
     switch (type) {
       case VapPlaybackEventTypeMessage.configReady:
-        return VapPlaybackEventType.configReady;
+        return VapPlatformPlaybackEventType.configReady;
       case VapPlaybackEventTypeMessage.started:
-        return VapPlaybackEventType.started;
+        return VapPlatformPlaybackEventType.started;
       case VapPlaybackEventTypeMessage.frame:
-        return VapPlaybackEventType.frame;
+        return VapPlatformPlaybackEventType.frame;
       case VapPlaybackEventTypeMessage.complete:
-        return VapPlaybackEventType.complete;
+        return VapPlatformPlaybackEventType.complete;
       case VapPlaybackEventTypeMessage.destroy:
-        return VapPlaybackEventType.destroy;
+        return VapPlatformPlaybackEventType.destroy;
       case VapPlaybackEventTypeMessage.stopped:
-        return VapPlaybackEventType.stopped;
+        return VapPlatformPlaybackEventType.stopped;
       case VapPlaybackEventTypeMessage.failed:
-        return VapPlaybackEventType.failed;
+        return VapPlatformPlaybackEventType.failed;
     }
   }
 }
@@ -270,13 +237,8 @@ class _VapEventApiHandler extends VapEventApi {
   final PigeonVapPlayerPlatform _platform;
 
   @override
-  void onPlaybackEvent(VapPlaybackEventMessage event) {
-    _platform.addPlaybackEvent(event);
-  }
-
-  @override
-  void onResourceClick(VapResourceClickEventMessage event) {
-    _platform.addClickEvent(event);
+  void onEvent(VapEventMessage event) {
+    _platform.addEvent(event);
   }
 }
 

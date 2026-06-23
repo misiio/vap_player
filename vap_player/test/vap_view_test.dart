@@ -3,36 +3,40 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_vap_player/src/vap_controller.dart';
+import 'package:flutter_vap_player/src/vap_models.dart';
 import 'package:flutter_vap_player/src/vap_view.dart';
-import 'package:vap_player_platform_interface/vap_player_platform_interface.dart';
+import 'package:vap_player_platform_interface/vap_player_platform_interface.dart'
+    as platform;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late FakeVapPlayerPlatform fakePlatform;
-  final VapPlayerPlatform previousPlatform = VapPlayerPlatform.instance;
+  late platform.VapPlayerPlatform previousPlatform;
 
   setUp(() {
     fakePlatform = FakeVapPlayerPlatform();
-    VapPlayerPlatform.instance = fakePlatform;
+    previousPlatform = platform.VapPlayerPlatform.instance;
+    platform.VapPlayerPlatform.instance = fakePlatform;
   });
 
   tearDown(() {
-    VapPlayerPlatform.instance = previousPlatform;
+    platform.VapPlayerPlatform.instance = previousPlatform;
   });
 
   test('handoff detaches old controller and attaches new controller', () async {
-    final oldController = VapController(platform: fakePlatform);
-    final newController = VapController(platform: fakePlatform);
-    final List<VapPlaybackEvent> oldEvents = <VapPlaybackEvent>[];
-    final List<VapPlaybackEvent> newEvents = <VapPlaybackEvent>[];
-    final oldSub = oldController.playbackEvents.listen(oldEvents.add);
-    final newSub = newController.playbackEvents.listen(newEvents.add);
+    final oldController = VapController();
+    final newController = VapController();
+    final List<VapEvent> oldEvents = <VapEvent>[];
+    final List<VapEvent> newEvents = <VapEvent>[];
+    final oldSub = oldController.events.listen(oldEvents.add);
+    final newSub = newController.events.listen(newEvents.add);
 
     oldController.attach(41);
-    oldController.setImageResolver((VapImageResolveRequest request) async {
-      return null;
-    });
+    await oldController.play(
+      const VapSource.file('/tmp/old.mp4'),
+      options: VapPlaybackOptions(imageResolver: (_) async => null),
+    );
     expect(fakePlatform.hasResolverForView(41), true);
 
     handoffVapViewController(
@@ -41,19 +45,19 @@ void main() {
       viewId: 41,
     );
 
-    expect(oldController.viewId, isNull);
-    expect(newController.viewId, 41);
     expect(fakePlatform.hasResolverForView(41), false);
     expect(fakePlatform.disposeCalls, isEmpty);
 
-    fakePlatform.emitPlayback(
-      const VapPlaybackEvent(viewId: 41, type: VapPlaybackEventType.started),
+    fakePlatform.emit(
+      const platform.VapPlatformPlaybackEvent(
+        viewId: 41,
+        type: platform.VapPlatformPlaybackEventType.started,
+      ),
     );
     await Future<void>.delayed(const Duration(milliseconds: 10));
 
     expect(oldEvents, isEmpty);
-    expect(newEvents.length, 1);
-    expect(newEvents.single.viewId, 41);
+    expect(newEvents, hasLength(1));
 
     await oldSub.cancel();
     await newSub.cancel();
@@ -62,10 +66,10 @@ void main() {
   });
 
   test('handoff rolls back to old controller when new attach fails', () async {
-    final oldController = VapController(platform: fakePlatform);
-    final failingController = ThrowingAttachVapController(
-      platform: fakePlatform,
-    );
+    final oldController = VapController();
+    final failingController = ThrowingAttachVapController();
+    final List<VapEvent> oldEvents = <VapEvent>[];
+    final oldSub = oldController.events.listen(oldEvents.add);
     oldController.attach(52);
 
     expect(
@@ -77,10 +81,18 @@ void main() {
       throwsA(isA<StateError>()),
     );
 
-    expect(oldController.viewId, 52);
-    expect(failingController.viewId, isNull);
+    fakePlatform.emit(
+      const platform.VapPlatformPlaybackEvent(
+        viewId: 52,
+        type: platform.VapPlatformPlaybackEventType.started,
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    expect(oldEvents, hasLength(1));
     expect(fakePlatform.disposeCalls, isEmpty);
 
+    await oldSub.cancel();
     await oldController.dispose();
     await failingController.dispose();
   });
@@ -88,8 +100,8 @@ void main() {
   test(
     'swap does not dispose immediately and active controller disposes once',
     () async {
-      final oldController = VapController(platform: fakePlatform);
-      final newController = VapController(platform: fakePlatform);
+      final oldController = VapController();
+      final newController = VapController();
       oldController.attach(63);
 
       handoffVapViewController(
@@ -113,7 +125,7 @@ void main() {
   test(
     'disposeVapViewControllerSafely reports async disposal errors',
     () async {
-      final controller = VapController(platform: fakePlatform);
+      final controller = VapController();
       controller.attach(91);
       fakePlatform.disposeError = StateError('onViewDisposed failed');
       final FlutterExceptionHandler? previousOnError = FlutterError.onError;
@@ -142,33 +154,29 @@ void main() {
 }
 
 class ThrowingAttachVapController extends VapController {
-  ThrowingAttachVapController({required VapPlayerPlatform platform})
-    : super(platform: platform);
-
   @override
   void attach(int viewId) {
     throw StateError('attach failed');
   }
 }
 
-class FakeVapPlayerPlatform extends VapPlayerPlatform {
-  final StreamController<VapPlaybackEvent> _playbackController =
-      StreamController<VapPlaybackEvent>.broadcast();
-  final StreamController<VapResourceClickEvent> _clickController =
-      StreamController<VapResourceClickEvent>.broadcast();
-  final Map<int, VapImageResolver> _resolvers = <int, VapImageResolver>{};
+class FakeVapPlayerPlatform extends platform.VapPlayerPlatform {
+  final StreamController<platform.VapPlatformEvent> _eventsController =
+      StreamController<platform.VapPlatformEvent>.broadcast();
+  final Map<int, platform.VapPlatformImageResolver> _resolvers =
+      <int, platform.VapPlatformImageResolver>{};
 
   final List<int> disposeCalls = <int>[];
   Object? disposeError;
 
   @override
-  Stream<VapPlaybackEvent> get playbackEvents => _playbackController.stream;
+  Stream<platform.VapPlatformEvent> get events => _eventsController.stream;
 
   @override
-  Stream<VapResourceClickEvent> get clickEvents => _clickController.stream;
-
-  @override
-  void setImageResolver(int viewId, VapImageResolver? resolver) {
+  void setImageResolver(
+    int viewId,
+    platform.VapPlatformImageResolver? resolver,
+  ) {
     if (resolver == null) {
       _resolvers.remove(viewId);
       return;
@@ -179,19 +187,10 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   bool hasResolverForView(int viewId) => _resolvers.containsKey(viewId);
 
   @override
-  Future<void> play(VapPlayRequest request) async {}
+  Future<void> play(platform.VapPlatformPlayRequest request) async {}
 
   @override
   Future<void> stop(int viewId) async {}
-
-  @override
-  Future<void> setMute(int viewId, bool mute) async {}
-
-  @override
-  Future<void> setContentMode(int viewId, VapContentMode mode) async {}
-
-  @override
-  Future<void> setFrameEventsEnabled(int viewId, bool enabled) async {}
 
   @override
   Future<void> dispose(int viewId) async {
@@ -203,21 +202,20 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   }
 
   @override
-  Future<int> getNetworkCacheSizeBytes() async => 0;
+  Future<platform.VapPlatformNetworkCacheInfo> getNetworkCacheInfo() async {
+    return const platform.VapPlatformNetworkCacheInfo(
+      sizeBytes: 0,
+      maxBytes: 0,
+    );
+  }
 
   @override
   Future<void> clearNetworkCache() async {}
 
   @override
-  Future<void> pruneNetworkCacheToBytes(int maxBytes) async {}
+  Future<void> setNetworkCacheMaxBytes(int maxBytes) async {}
 
-  @override
-  Future<int> getNetworkAutoEvictionMaxBytes() async => 0;
-
-  @override
-  Future<void> setNetworkAutoEvictionMaxBytes(int maxBytes) async {}
-
-  void emitPlayback(VapPlaybackEvent event) {
-    _playbackController.add(event);
+  void emit(platform.VapPlatformEvent event) {
+    _eventsController.add(event);
   }
 }

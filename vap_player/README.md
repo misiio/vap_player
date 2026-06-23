@@ -11,13 +11,13 @@ A federated Flutter plugin for [Tencent VAP](https://github.com/Tencent/vap) on 
 
 ## Features
 
-- `VapView` widget for embedding native VAP rendering views.
-- `VapController` for `play`, `stop`, `mute`, `contentMode`, and frame-event toggling.
+- `VapPlayer` widget for embedding native VAP rendering views.
+- `VapController` for `play`, `stop`, `dispose`, and a single event stream.
 - Source types: `asset`, `file`, and `network` (URL download + cache).
-- `VapNetworkCache` global APIs for cache size, clear, and manual prune controls.
+- `VapNetworkCache` global APIs for cache info, clear, and max-size controls.
 - VAPX support:
-  - synchronous tag/text replacement from `tagValues`
-  - async image resolution from Dart via `setImageResolver`
+  - synchronous tag/text replacement from play-scoped `tags`
+  - async image resolution from play-scoped `imageResolver`
 - Playback + click + error events.
 
 ## Package Layout
@@ -29,7 +29,7 @@ A federated Flutter plugin for [Tencent VAP](https://github.com/Tencent/vap) on 
 
 ## Quick Use
 
-Build `VapView` first, then start playback. Do not block mounting with `await controller.play*()` before the view exists.
+Build `VapPlayer`, then start playback. Calls to `play()` made before the native view is attached are queued automatically.
 
 ```dart
 import 'dart:async';
@@ -50,19 +50,20 @@ class _VapSamplePageState extends State<VapSamplePage> {
   @override
   void initState() {
     super.initState();
-    _controller = VapController(autoPlay: true, looping: true);
-
-    _controller.setImageResolver((request) async {
-      // Return image bytes for VAPX image resources.
-      return null;
-    });
+    _controller = VapController();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(
-        _controller.playNetwork(
-          'https://cdn.example.com/vap/demo.mp4',
-          repeatCount: 0,
-          contentMode: VapContentMode.aspectFit,
+        _controller.play(
+          VapSource.network(Uri.parse('https://cdn.example.com/vap/demo.mp4')),
+          options: VapPlaybackOptions(
+            loop: true,
+            fit: BoxFit.contain,
+            imageResolver: (request) async {
+              // Return image bytes for VAPX image resources.
+              return null;
+            },
+          ),
         ).catchError((Object error, StackTrace stackTrace) {
           debugPrint('Failed to start VAP playback: $error');
           debugPrintStack(stackTrace: stackTrace);
@@ -79,17 +80,15 @@ class _VapSamplePageState extends State<VapSamplePage> {
 
   @override
   Widget build(BuildContext context) {
-    return VapView(controller: _controller);
+    return VapPlayer(controller: _controller);
   }
 }
 ```
 
 ```dart
-final int cacheBytes = await VapNetworkCache.sizeBytes();
-final int autoLimitBytes = await VapNetworkCache.autoEvictionMaxBytes();
+final VapNetworkCacheInfo cache = await VapNetworkCache.info();
 // Controls both cache auto-eviction and max single network download size.
-await VapNetworkCache.setAutoEvictionMaxBytes(200 * 1024 * 1024);
-await VapNetworkCache.pruneToBytes(100 * 1024 * 1024);
+await VapNetworkCache.setMaxBytes(200 * 1024 * 1024);
 await VapNetworkCache.clear();
 ```
 
@@ -103,13 +102,12 @@ See `flutter_vap_player/example` for complete asset playback and VAPX demo flows
 
 ## Notes
 
-- `VapSourceType.network` treats `source` as an absolute `http/https` URL.
-- For network sources, `assetPackage` is ignored.
-- Missing `tagValues` entries fall back to the original tag string on both Android and iOS.
+- `VapSource.network` requires an absolute `http/https` URL.
+- For network sources, asset package values are ignored.
+- Missing `tags` entries fall back to the original tag string on both Android and iOS.
 - `VapImageResolveRequest.resourceId` is platform-specific: Android forwards native `srcId`, while iOS falls back to the tag value when native `srcId` is unavailable in `QGVAPSourceInfo`.
-- `fps` in play requests is currently effective on Android. iOS uses `QGVAPWrapView` APIs (which do not expose fps override), so `fps` is treated as a best-effort hint and currently ignored.
 - Native network downloads are hardened with strict `2xx` checks, redirect limits (`3`), size caps, and MP4 signature validation before cache promotion.
-- `VapNetworkCache.setAutoEvictionMaxBytes()` controls both:
+- `VapNetworkCache.setMaxBytes()` controls both:
   1. cache auto-eviction target
   2. maximum allowed size of a single network download (minimum enforced floor: `10 MiB`)
 - Native network cache auto-evicts oldest files after successful downloads when cache size exceeds the configured limit (default `100 MiB`).

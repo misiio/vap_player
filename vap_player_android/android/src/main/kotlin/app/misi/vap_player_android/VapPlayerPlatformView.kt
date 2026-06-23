@@ -57,14 +57,15 @@ class VapPlayerPlatformView(
     override fun onClick(resource: Resource) {
       val point = resource.curPoint
       sendResourceClick(
-        VapResourceClickEventMessage(
+        VapEventMessage(
           viewId = viewId,
+          kind = VapEventKindMessage.RESOURCE_CLICK,
           resourceId = resource.id,
           tag = resource.tag,
           x = point?.x?.toDouble(),
           y = point?.y?.toDouble(),
-          width = point?.w?.toDouble(),
-          height = point?.h?.toDouble(),
+          resourceWidth = point?.w?.toDouble(),
+          resourceHeight = point?.h?.toDouble(),
         ),
       )
     }
@@ -151,23 +152,17 @@ class VapPlayerPlatformView(
       throw FlutterError("invalid-args", "play requires a non-empty source", null)
     }
 
-    frameEventsEnabled = request.frameEventsEnabled ?: false
+    frameEventsEnabled = request.frameEvents ?: false
     tagValues = sanitizeTagValues(request.tagValues)
     val requestToken = invalidatePendingNetworkPlayback()
 
     runOnMain {
-      animView.setMute(request.mute ?: false)
+      animView.setMute(request.muted ?: false)
 
       val contentMode = request.contentMode ?: VapContentModeMessage.SCALE_TO_FILL
       setContentMode(contentMode)
 
-      val fps = (request.fps ?: 0L).toInt()
-      if (fps > 0) {
-        animView.setFps(fps)
-      }
-
-      val repeatCount = request.repeatCount ?: 0L
-      val loop = if (repeatCount < 0L) Int.MAX_VALUE else (repeatCount + 1L).toInt()
+      val loop = if (request.loop == true) Int.MAX_VALUE else 1
       animView.setLoop(loop)
     }
 
@@ -206,17 +201,12 @@ class VapPlayerPlatformView(
     runOnMain {
       animView.stopPlay()
       sendPlaybackEvent(
-        VapPlaybackEventMessage(
+        VapEventMessage(
           viewId = viewId,
-          type = VapPlaybackEventTypeMessage.STOPPED,
+          kind = VapEventKindMessage.PLAYBACK,
+          playbackType = VapPlaybackEventTypeMessage.STOPPED,
         ),
       )
-    }
-  }
-
-  fun setMute(mute: Boolean) {
-    runOnMain {
-      animView.setMute(mute)
     }
   }
 
@@ -230,15 +220,12 @@ class VapPlayerPlatformView(
     }
   }
 
-  fun setFrameEventsEnabled(enabled: Boolean) {
-    frameEventsEnabled = enabled
-  }
-
   override fun onVideoConfigReady(config: AnimConfig): Boolean {
     sendPlaybackEvent(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId = viewId,
-        type = VapPlaybackEventTypeMessage.CONFIG_READY,
+        kind = VapEventKindMessage.PLAYBACK,
+        playbackType = VapPlaybackEventTypeMessage.CONFIG_READY,
         width = config.width.toLong(),
         height = config.height.toLong(),
         fps = config.fps.toLong(),
@@ -250,9 +237,10 @@ class VapPlayerPlatformView(
 
   override fun onVideoStart() {
     sendPlaybackEvent(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId = viewId,
-        type = VapPlaybackEventTypeMessage.STARTED,
+        kind = VapEventKindMessage.PLAYBACK,
+        playbackType = VapPlaybackEventTypeMessage.STARTED,
       ),
     )
   }
@@ -262,9 +250,10 @@ class VapPlayerPlatformView(
       return
     }
     sendPlaybackEvent(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId = viewId,
-        type = VapPlaybackEventTypeMessage.FRAME,
+        kind = VapEventKindMessage.PLAYBACK,
+        playbackType = VapPlaybackEventTypeMessage.FRAME,
         frameIndex = frameIndex.toLong(),
       ),
     )
@@ -272,48 +261,51 @@ class VapPlayerPlatformView(
 
   override fun onVideoComplete() {
     sendPlaybackEvent(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId = viewId,
-        type = VapPlaybackEventTypeMessage.COMPLETE,
+        kind = VapEventKindMessage.PLAYBACK,
+        playbackType = VapPlaybackEventTypeMessage.COMPLETE,
       ),
     )
   }
 
   override fun onVideoDestroy() {
     sendPlaybackEvent(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId = viewId,
-        type = VapPlaybackEventTypeMessage.DESTROY,
+        kind = VapEventKindMessage.PLAYBACK,
+        playbackType = VapPlaybackEventTypeMessage.DESTROY,
       ),
     )
   }
 
   override fun onFailed(errorType: Int, errorMsg: String?) {
     sendPlaybackEvent(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId = viewId,
-        type = VapPlaybackEventTypeMessage.FAILED,
+        kind = VapEventKindMessage.PLAYBACK,
+        playbackType = VapPlaybackEventTypeMessage.FAILED,
         errorCode = errorType.toLong(),
         errorMessage = errorMsg,
       ),
     )
   }
 
-  private fun sendPlaybackEvent(message: VapPlaybackEventMessage) {
+  private fun sendPlaybackEvent(message: VapEventMessage) {
     runOnMain {
-      eventApi.onPlaybackEvent(message) { result ->
+      eventApi.onEvent(message) { result ->
         result.exceptionOrNull()?.let {
-          Log.w(TAG, "onPlaybackEvent send failed: $it")
+          Log.w(TAG, "onEvent send failed: $it")
         }
       }
     }
   }
 
-  private fun sendResourceClick(message: VapResourceClickEventMessage) {
+  private fun sendResourceClick(message: VapEventMessage) {
     runOnMain {
-      eventApi.onResourceClick(message) { result ->
+      eventApi.onEvent(message) { result ->
         result.exceptionOrNull()?.let {
-          Log.w(TAG, "onResourceClick send failed: $it")
+          Log.w(TAG, "onEvent send failed: $it")
         }
       }
     }
@@ -563,9 +555,10 @@ class VapPlayerPlatformView(
 
   private fun emitNetworkFailure(code: Long, message: String) {
     sendPlaybackEvent(
-      VapPlaybackEventMessage(
+      VapEventMessage(
         viewId = viewId,
-        type = VapPlaybackEventTypeMessage.FAILED,
+        kind = VapEventKindMessage.PLAYBACK,
+        playbackType = VapPlaybackEventTypeMessage.FAILED,
         errorCode = code,
         errorMessage = message,
       ),

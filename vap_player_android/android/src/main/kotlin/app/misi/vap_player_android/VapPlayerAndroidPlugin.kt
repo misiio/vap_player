@@ -47,26 +47,21 @@ class VapPlayerAndroidPlugin : FlutterPlugin, VapHostApi {
     requireView(viewId).stop()
   }
 
-  override fun setMute(viewId: Long, mute: Boolean) {
-    requireView(viewId).setMute(mute)
-  }
-
-  override fun setContentMode(viewId: Long, mode: VapContentModeMessage) {
-    requireView(viewId).setContentMode(mode)
-  }
-
-  override fun setFrameEventsEnabled(viewId: Long, enabled: Boolean) {
-    requireView(viewId).setFrameEventsEnabled(enabled)
-  }
-
   override fun dispose(viewId: Long) {
     requireView(viewId).release()
     platformViews.remove(viewId)
   }
 
-  override fun getNetworkCacheSizeBytes(callback: (Result<Long>) -> Unit) {
+  override fun getNetworkCacheInfo(callback: (Result<VapNetworkCacheInfoMessage>) -> Unit) {
     try {
-      callback(Result.success(VapNetworkCacheUtils.networkCacheSizeBytes(applicationContext.cacheDir)))
+      callback(
+        Result.success(
+          VapNetworkCacheInfoMessage(
+            sizeBytes = VapNetworkCacheUtils.networkCacheSizeBytes(applicationContext.cacheDir),
+            maxBytes = VapNetworkCacheUtils.autoEvictionMaxBytes(),
+          ),
+        ),
+      )
     } catch (t: Throwable) {
       callback(Result.failure(t))
     }
@@ -76,24 +71,9 @@ class VapPlayerAndroidPlugin : FlutterPlugin, VapHostApi {
     VapNetworkCacheUtils.clearNetworkCache(applicationContext.cacheDir)
   }
 
-  override fun pruneNetworkCacheToBytes(maxBytes: Long) {
+  override fun setNetworkCacheMaxBytes(maxBytes: Long) {
     if (maxBytes < 0L) {
-      throw FlutterError("invalid-args", "pruneNetworkCacheToBytes requires maxBytes >= 0", null)
-    }
-    VapNetworkCacheUtils.pruneNetworkCacheToBytes(
-      cacheRoot = applicationContext.cacheDir,
-      maxBytes = maxBytes,
-      protectedFile = null,
-    )
-  }
-
-  override fun getNetworkAutoEvictionMaxBytes(callback: (Result<Long>) -> Unit) {
-    callback(Result.success(VapNetworkCacheUtils.autoEvictionMaxBytes()))
-  }
-
-  override fun setNetworkAutoEvictionMaxBytes(maxBytes: Long) {
-    if (maxBytes < 0L) {
-      throw FlutterError("invalid-args", "setNetworkAutoEvictionMaxBytes requires maxBytes >= 0", null)
+      throw FlutterError("invalid-args", "setNetworkCacheMaxBytes requires maxBytes >= 0", null)
     }
     VapNetworkCacheUtils.setAutoEvictionMaxBytes(maxBytes)
   }

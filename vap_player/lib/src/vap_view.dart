@@ -7,8 +7,8 @@ import 'package:flutter/widgets.dart';
 
 import 'vap_controller.dart';
 
-class VapView extends StatefulWidget {
-  const VapView({
+class VapPlayer extends StatefulWidget {
+  const VapPlayer({
     super.key,
     required this.controller,
     this.hitTestBehavior = PlatformViewHitTestBehavior.opaque,
@@ -20,14 +20,14 @@ class VapView extends StatefulWidget {
   final PlatformViewHitTestBehavior hitTestBehavior;
 
   @override
-  State<VapView> createState() => _VapViewState();
+  State<VapPlayer> createState() => _VapPlayerState();
 }
 
-class _VapViewState extends State<VapView> {
+class _VapPlayerState extends State<VapPlayer> {
   int? _platformViewId;
 
   @override
-  void didUpdateWidget(covariant VapView oldWidget) {
+  void didUpdateWidget(covariant VapPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (identical(oldWidget.controller, widget.controller)) {
       return;
@@ -57,7 +57,7 @@ class _VapViewState extends State<VapView> {
   Widget build(BuildContext context) {
     if (defaultTargetPlatform == TargetPlatform.android) {
       return AndroidView(
-        viewType: VapView.viewType,
+        viewType: VapPlayer.viewType,
         onPlatformViewCreated: _onPlatformViewCreated,
         hitTestBehavior: widget.hitTestBehavior,
         creationParamsCodec: const StandardMessageCodec(),
@@ -66,14 +66,14 @@ class _VapViewState extends State<VapView> {
 
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       return UiKitView(
-        viewType: VapView.viewType,
+        viewType: VapPlayer.viewType,
         onPlatformViewCreated: _onPlatformViewCreated,
         hitTestBehavior: widget.hitTestBehavior,
         creationParamsCodec: const StandardMessageCodec(),
       );
     }
 
-    throw UnsupportedError('VapView is only supported on Android and iOS.');
+    throw UnsupportedError('VapPlayer is only supported on Android and iOS.');
   }
 
   void _onPlatformViewCreated(int viewId) {
@@ -94,7 +94,7 @@ void disposeVapViewControllerSafely(VapController controller) {
           exception: error,
           stack: stackTrace,
           library: 'flutter_vap_player',
-          context: ErrorDescription('while disposing VapView controller'),
+          context: ErrorDescription('while disposing VapPlayer controller'),
         ),
       );
     }),

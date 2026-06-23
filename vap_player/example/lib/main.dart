@@ -22,16 +22,17 @@ class _VapDemoPageState extends State<VapDemoPage> {
   @override
   void initState() {
     super.initState();
-    _controller.setImageResolver(_resolveImage);
-    _controller.playbackEvents.listen((VapPlaybackEvent event) {
-      _addLog(
-        'playback: ${event.type} frame=${event.frameIndex} error=${event.errorMessage}',
-      );
-    });
-    _controller.clickEvents.listen((VapResourceClickEvent event) {
-      _addLog(
-        'click: tag=${event.tag} rect=(${event.x}, ${event.y}, ${event.width}, ${event.height})',
-      );
+    _controller.events.listen((VapEvent event) {
+      switch (event) {
+        case VapPlaybackEvent():
+          _addLog(
+            'playback: ${event.type} frame=${event.frameIndex} error=${event.errorMessage}',
+          );
+        case VapResourceClickEvent():
+          _addLog(
+            'click: tag=${event.tag} rect=(${event.x}, ${event.y}, ${event.width}, ${event.height})',
+          );
+      }
     });
   }
 
@@ -55,7 +56,7 @@ class _VapDemoPageState extends State<VapDemoPage> {
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.blueGrey),
                 ),
-                child: VapView(controller: _controller),
+                child: VapPlayer(controller: _controller),
               ),
             ),
           ),
@@ -95,25 +96,26 @@ class _VapDemoPageState extends State<VapDemoPage> {
   }
 
   Future<void> _playClassic() async {
-    await _controller.playAsset(
-      'assets/demo.mp4',
-      repeatCount: 0,
-      mute: false,
-      contentMode: VapContentMode.aspectFit,
+    await _controller.play(
+      const VapSource.asset('assets/demo.mp4'),
+      options: const VapPlaybackOptions(fit: BoxFit.contain),
     );
   }
 
   Future<void> _playVapx() async {
-    await _controller.playAsset(
-      'assets/vap.mp4',
-      repeatCount: -1,
-      mute: true,
-      contentMode: VapContentMode.aspectFit,
-      tagValues: const <String, String>{
-        '[sImg1]': 'demo://qq_avatar',
-        '[textAnchor]': 'Streamer Alice',
-        '[textUser]': 'User Bob',
-      },
+    await _controller.play(
+      const VapSource.asset('assets/vap.mp4'),
+      options: VapPlaybackOptions(
+        loop: true,
+        muted: true,
+        fit: BoxFit.contain,
+        tags: const <String, String>{
+          '[sImg1]': 'demo://qq_avatar',
+          '[textAnchor]': 'Streamer Alice',
+          '[textUser]': 'User Bob',
+        },
+        imageResolver: _resolveImage,
+      ),
     );
   }
 
