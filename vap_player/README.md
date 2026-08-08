@@ -11,7 +11,7 @@ including **VAPX** (mix/fusion) dynamic text and image injection.
 | [`flutter_vap_player`](./) | App-facing API (`VapPlayerController`, `VapPlayer` widget) |
 | [`vap_player_platform_interface`](../vap_player_platform_interface/) | Shared platform interface |
 | [`vap_player_android`](../vap_player_android/) | Android implementation (`io.github.tencent:vap:2.0.28`) |
-| [`vap_player_ios`](../vap_player_ios/) | iOS implementation (CocoaPods `QGVAPlayer`) |
+| [`vap_player_ios`](../vap_player_ios/) | iOS implementation (CocoaPods/SPM `QGVAPlayer`) |
 
 Platform communication uses [pigeon](https://pub.dev/packages/pigeon)
 (`@HostApi` for commands, `@FlutterApi` for VAPX resource callbacks, and

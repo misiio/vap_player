@@ -3,7 +3,7 @@ import 'package:pigeon/pigeon.dart';
 @ConfigurePigeon(
   PigeonOptions(
     dartOut: 'lib/src/messages.g.dart',
-    swiftOut: 'ios/Classes/messages.g.swift',
+    swiftOut: 'ios/vap_player_ios/Sources/vap_player_ios/messages.g.swift',
     dartPackageName: 'vap_player_ios',
   ),
 )

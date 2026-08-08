@@ -22,7 +22,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   QGVAPlayer: a0bca68c9bd6f1c8de5ac2d10ddf98be6038cce9
-  vap_player_ios: aad1018ec841fa6ded7d7c91a75f9e47a6d6accc
+  vap_player_ios: 0859961ec7d491e3e73964312bcd110d7f6eb601
 
 PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
 

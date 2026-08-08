@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Add Swift Package Manager support while retaining CocoaPods compatibility.
+- Pin SPM builds to QGVAPlayer `1.0.19-spm` from the maintained
+  `misiio/vap` fork.
 - Add native per-player QGVA rendering with pause/resume, repeat, VAPX
   resources, and event channels.
 - Report VAP old-version parse failures as error `10005` before native cleanup.
