@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Breaking: introduce per-player creation, playback, control, event, rendering,
+  and VAPX resource interfaces.
+
 ## 1.0.0
 
 - Breaking: reduce the platform interface to one event stream, one play request, stop/dispose, resolver registration, and compact network cache calls.

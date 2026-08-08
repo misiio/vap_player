@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Breaking: introduce `VapPlayerController` and `VapPlayer` as the app-facing
+  API with a per-player lifecycle.
+- Add Android texture rendering, repeat controls, iOS pause/resume, detailed
+  playback state, and VAPX text/image delegates.
+
 ## 1.0.0
 
 - Breaking: replace `VapView` with `VapPlayer`.

@@ -1,1 +1,1 @@
-// Android federated implementation package entrypoint.
+export 'src/android_vap_player.dart' show AndroidVapPlayer;

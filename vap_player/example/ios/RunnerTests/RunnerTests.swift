@@ -1,29 +1,31 @@
 import Flutter
 import UIKit
 import XCTest
-
-// If your plugin has been explicitly set to "type: .dynamic" in the Package.swift,
-// you will need to add your plugin as a dependency of RunnerTests within Xcode.
-
-@testable import flutter_vap_player
-
-// This demonstrates a simple unit test of the Swift portion of this plugin's implementation.
-//
-// See https://developer.apple.com/documentation/xctest for more information about using XCTest.
+@testable import vap_player_ios
 
 class RunnerTests: XCTestCase {
 
-  func testGetPlatformVersion() {
-    let plugin = VapPlayerPlugin()
+  func testOldVersionCompatibilityError() {
+    let error = VapPlayerInstance.oldVersionCompatibilityError(
+      hasVapcBox: false,
+      enableOldVersion: false)
 
-    let call = FlutterMethodCall(methodName: "getPlatformVersion", arguments: [])
+    XCTAssertEqual(error?.errorType, 10005)
+    XCTAssertEqual(error?.errorMsg, "0x5 parse config fail")
+  }
 
-    let resultExpectation = expectation(description: "result block must be called.")
-    plugin.handle(call) { result in
-      XCTAssertEqual(result as! String, "iOS " + UIDevice.current.systemVersion)
-      resultExpectation.fulfill()
-    }
-    waitForExpectations(timeout: 1)
+  func testOldVersionCompatibilityAllowsExplicitlyEnabledFiles() {
+    XCTAssertNil(
+      VapPlayerInstance.oldVersionCompatibilityError(
+        hasVapcBox: false,
+        enableOldVersion: true))
+  }
+
+  func testOldVersionCompatibilityAllowsFilesWithVapcBox() {
+    XCTAssertNil(
+      VapPlayerInstance.oldVersionCompatibilityError(
+        hasVapcBox: true,
+        enableOldVersion: false))
   }
 
 }

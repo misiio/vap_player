@@ -1,1 +1,1 @@
-// iOS federated implementation package entrypoint.
+export 'src/ios_vap_player.dart' show IosVapPlayer;

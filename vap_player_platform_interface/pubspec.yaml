@@ -1,5 +1,5 @@
 name: vap_player_platform_interface
-description: Platform interface and pigeon contracts for flutter_vap_player.
+description: Shared per-player platform contract for flutter_vap_player.
 version: 1.0.0
 homepage: https://github.com/misiio/vap_player
 repository: https://github.com/misiio/vap_player/tree/master/vap_player_platform_interface
@@ -11,13 +11,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  meta: ^1.17.0
   plugin_platform_interface: ^2.1.8
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  pigeon: ^26.0.2
-
-flutter:

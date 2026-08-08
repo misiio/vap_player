@@ -1,5 +1,5 @@
 name: vap_player_ios
-description: iOS implementation of vap_player.
+description: iOS implementation of flutter_vap_player.
 version: 1.0.0
 homepage: https://github.com/misiio/vap_player
 repository: https://github.com/misiio/vap_player/tree/master/vap_player_ios
@@ -17,10 +17,12 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  pigeon: ^27.1.0
 
 flutter:
   plugin:
     implements: flutter_vap_player
     platforms:
       ios:
+        dartPluginClass: IosVapPlayer
         pluginClass: VapPlayerIosPlugin

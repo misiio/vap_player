@@ -1,5 +1,5 @@
 name: vap_player_android
-description: Android implementation of vap_player.
+description: Android implementation of flutter_vap_player.
 version: 1.0.0
 homepage: https://github.com/misiio/vap_player
 repository: https://github.com/misiio/vap_player/tree/master/vap_player_android
@@ -17,11 +17,13 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  pigeon: ^27.1.0
 
 flutter:
   plugin:
     implements: flutter_vap_player
     platforms:
       android:
+        dartPluginClass: AndroidVapPlayer
         package: app.misi.vap_player_android
         pluginClass: VapPlayerAndroidPlugin

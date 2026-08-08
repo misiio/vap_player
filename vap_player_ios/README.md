@@ -2,6 +2,9 @@
 
 The iOS implementation of [`flutter_vap_player`][1].
 
+It wraps QGVAPlayer `1.0.19` with per-player event streams, pause/resume, repeat,
+and VAPX resource callbacks. Texture requests fall back to a platform view.
+
 ## Usage
 
 This package is [endorsed][2], which means you can simply use `flutter_vap_player`

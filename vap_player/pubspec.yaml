@@ -9,6 +9,7 @@ environment:
   flutter: '>=3.22.0'
 
 dependencies:
+  crypto: ^3.0.0
   flutter:
     sdk: flutter
   vap_player_platform_interface: ^1.0.0

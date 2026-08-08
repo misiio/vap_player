@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Add native per-player QGVA rendering with pause/resume, repeat, VAPX
+  resources, and event channels.
+- Report VAP old-version parse failures as error `10005` before native cleanup.
+
 ## 1.0.0
 
 - Breaking: implement the v2 platform contract with play-scoped options and a single event callback.

@@ -1,89 +1,86 @@
 package app.misi.vap_player_android
 
-import android.content.Context
 import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.plugin.common.MessageCodec
 
-class VapPlayerAndroidPlugin : FlutterPlugin, VapHostApi {
-  private lateinit var applicationContext: Context
-  private lateinit var flutterAssets: FlutterPlugin.FlutterAssets
-  private lateinit var eventApi: VapEventApi
-  private lateinit var resourceApi: VapResourceApi
+/** Android implementation of the vap_player plugin. */
+class VapPlayerAndroidPlugin : FlutterPlugin, AndroidVapPlayerApi {
 
-  private val platformViews = mutableMapOf<Long, VapPlayerPlatformView>()
+    companion object {
+        const val PLATFORM_VIEW_TYPE = "app.misi/vap_player_android"
 
-  override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-    applicationContext = binding.applicationContext
-    flutterAssets = binding.flutterAssets
-    eventApi = VapEventApi(binding.binaryMessenger)
-    resourceApi = VapResourceApi(binding.binaryMessenger)
-
-    VapHostApi.setUp(binding.binaryMessenger, this)
-    binding.platformViewRegistry.registerViewFactory(
-      VapPlayerPlatformView.VIEW_TYPE,
-      VapPlayerPlatformViewFactory(
-        flutterAssets = flutterAssets,
-        eventApi = eventApi,
-        resourceApi = resourceApi,
-        onViewDisposed = ::onViewDisposed,
-        onViewCreated = { view -> platformViews[view.viewId] = view },
-      ),
-    )
-  }
-
-  override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-    VapHostApi.setUp(binding.binaryMessenger, null)
-    platformViews.values.forEach { it.release() }
-    platformViews.clear()
-  }
-
-  override fun play(request: VapPlayRequestMessage) {
-    val viewId = request.viewId
-      ?: throw FlutterError("invalid-args", "play requires a non-null viewId", null)
-    val view = requireView(viewId)
-    view.play(request)
-  }
-
-  override fun stop(viewId: Long) {
-    requireView(viewId).stop()
-  }
-
-  override fun dispose(viewId: Long) {
-    requireView(viewId).release()
-    platformViews.remove(viewId)
-  }
-
-  override fun getNetworkCacheInfo(callback: (Result<VapNetworkCacheInfoMessage>) -> Unit) {
-    try {
-      callback(
-        Result.success(
-          VapNetworkCacheInfoMessage(
-            sizeBytes = VapNetworkCacheUtils.networkCacheSizeBytes(applicationContext.cacheDir),
-            maxBytes = VapNetworkCacheUtils.autoEvictionMaxBytes(),
-          ),
-        ),
-      )
-    } catch (t: Throwable) {
-      callback(Result.failure(t))
+        val pigeonCodec: MessageCodec<Any?>
+            get() = AndroidVapPlayerApi.codec
     }
-  }
 
-  override fun clearNetworkCache() {
-    VapNetworkCacheUtils.clearNetworkCache(applicationContext.cacheDir)
-  }
+    private var binding: FlutterPlugin.FlutterPluginBinding? = null
+    private var flutterApi: VapResourceFlutterApi? = null
+    private val players = mutableMapOf<Long, VapPlayerInstance>()
+    private var nextPlayerId = 1L
 
-  override fun setNetworkCacheMaxBytes(maxBytes: Long) {
-    if (maxBytes < 0L) {
-      throw FlutterError("invalid-args", "setNetworkCacheMaxBytes requires maxBytes >= 0", null)
+    override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        this.binding = binding
+        flutterApi = VapResourceFlutterApi(binding.binaryMessenger)
+        AndroidVapPlayerApi.setUp(binding.binaryMessenger, this)
+        binding.platformViewRegistry.registerViewFactory(
+            PLATFORM_VIEW_TYPE,
+            VapPlatformViewFactory { playerId -> players[playerId] },
+        )
     }
-    VapNetworkCacheUtils.setAutoEvictionMaxBytes(maxBytes)
-  }
 
-  private fun requireView(viewId: Long): VapPlayerPlatformView {
-    return platformViews[viewId]
-      ?: throw FlutterError("not-found", "No VapView found for viewId=$viewId", null)
-  }
+    override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        disposeAllPlayers()
+        AndroidVapPlayerApi.setUp(binding.binaryMessenger, null)
+        flutterApi = null
+        this.binding = null
+    }
 
-  private fun onViewDisposed(viewId: Long) {
-    platformViews.remove(viewId)
-  }
+    private fun disposeAllPlayers() {
+        players.values.forEach { it.dispose() }
+        players.clear()
+    }
+
+    // ------------------------------------------------------------------
+    // AndroidVapPlayerApi
+    // ------------------------------------------------------------------
+
+    override fun initialize() {
+        disposeAllPlayers()
+    }
+
+    override fun createForPlatformView(options: PlatformCreationOptions): Long {
+        val binding = requireBinding()
+        val playerId = nextPlayerId++
+        players[playerId] = VapPlayerInstance(
+            playerId,
+            binding.binaryMessenger,
+            requireNotNull(flutterApi),
+            options,
+            textureView = null,
+        )
+        return playerId
+    }
+
+    override fun createForTextureView(
+        options: PlatformCreationOptions
+    ): TexturePlayerIds {
+        val binding = requireBinding()
+        val producer = binding.textureRegistry.createSurfaceProducer()
+        val playerId = nextPlayerId++
+        players[playerId] = VapPlayerInstance(
+            playerId,
+            binding.binaryMessenger,
+            requireNotNull(flutterApi),
+            options,
+            textureView = TextureAnimView(producer),
+        )
+        return TexturePlayerIds(playerId = playerId, textureId = producer.id())
+    }
+
+    override fun dispose(playerId: Long) {
+        players.remove(playerId)?.dispose()
+    }
+
+    private fun requireBinding(): FlutterPlugin.FlutterPluginBinding =
+        binding ?: throw IllegalStateException("Plugin not attached to engine")
 }

@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Add native per-player VAP rendering with Flutter textures, platform views,
+  VAPX resources, and event channels while retaining the
+  `app.misi.vap_player_android` namespace.
+
 ## 1.0.0
 
 - Breaking: implement the v2 platform contract with play-scoped options and a single event callback.
