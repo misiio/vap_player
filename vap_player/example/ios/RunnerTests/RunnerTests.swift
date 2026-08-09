@@ -28,4 +28,19 @@ class RunnerTests: XCTestCase {
         enableOldVersion: false))
   }
 
+  func testLegacyDisplaySizeIsDerivedFromDecodedResolution() {
+    let size = VapPlayerInstance.legacyDisplaySize(
+      videoWidth: 2160,
+      videoHeight: 1200)
+
+    XCTAssertEqual(size, CGSize(width: 1080, height: 1200))
+  }
+
+  func testLegacyDisplaySizeRejectsInvalidResolution() {
+    XCTAssertNil(
+      VapPlayerInstance.legacyDisplaySize(videoWidth: 1, videoHeight: 1200))
+    XCTAssertNil(
+      VapPlayerInstance.legacyDisplaySize(videoWidth: 2160, videoHeight: 0))
+  }
+
 }

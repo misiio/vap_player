@@ -38,7 +38,7 @@ final controller = VapPlayerController.asset(
   options: const VapPlayerOptions(
     viewType: VapViewType.textureView, // Android texture; iOS platform view
     repeatCount: 0,                    // 0 = once, n = n+1 plays, -1 = loop
-    scaleType: VapScaleType.fitCenter, // platform-view mode only
+    scaleType: VapScaleType.fitCenter,
   ),
 );
 await controller.initialize();
@@ -102,8 +102,14 @@ delegate leaves the slot empty instead of blocking playback forever.
   start/stop/loop. `pause()`/`resume()` work on iOS (`value.canPause`),
   and throw `UnsupportedError` on Android.
 - `play()` always restarts from the first frame (VAP has no prepare/seek
-  step); animation metadata (`value.size`, `frameCount`, …) becomes
-  available shortly after `play()` via the config-ready event.
+  step). `initialize()` reads the animation's size from the mp4, so
+  `value.size` and `value.aspectRatio` are usable for layout before
+  playback starts; the platform refines the rest (`frameCount`, `fps`)
+  once it has parsed the file.
+- VAP v1 files — plain alpha mp4s with no `vapc` box, played with
+  `enableOldVersion: true` — are assumed to be split horizontally with the
+  alpha channel on the left, which is what VAP's default video mode
+  expects on both platforms. Their `frameCount` and `fps` stay 0 on iOS.
 - Per-frame progress events are opt-in
   (`VapPlayerOptions.enableFrameEvents`) to limit channel traffic.
 - Resource-click events require platform-view mode (touches are handled by
@@ -114,9 +120,10 @@ delegate leaves the slot empty instead of blocking playback forever.
 
 ## Example
 
-`example` demonstrates all three modes: Texture, PlatformView
-with scale-type switching, and VAPX with dynamic text/images (demo assets
-from the Tencent VAP repository).
+`example` demonstrates all three modes: Texture, PlatformView, and VAPX with
+dynamic text/images. The Texture and PlatformView pages switch between scale
+types and between a v1 and a v2 source file, and report the animation size
+read from the mp4.
 
 ## Development
 

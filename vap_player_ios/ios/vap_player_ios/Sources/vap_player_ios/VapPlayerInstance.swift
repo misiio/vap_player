@@ -124,14 +124,10 @@ final class VapPlayerInstance: NSObject {
       {
         self.sendEvent(error)
       }
-      view.contentMode = {
-        guard hasVapcBox else { return QGVAPWrapViewContentMode.scaleToFill }
-        switch options.contentMode {
-        case .scaleToFill: return QGVAPWrapViewContentMode.scaleToFill
-        case .aspectFit: return QGVAPWrapViewContentMode.aspectFit
-        case .aspectFill: return QGVAPWrapViewContentMode.aspectFill
-        }
-      }()
+      // Flutter sizes the platform view for fit/cover. The native renderer
+      // should always fill that surface; QGVAPWrapView cannot calculate an
+      // aspect mode for V1 because its vapc config model is nil.
+      view.contentMode = QGVAPWrapViewContentMode.scaleToFill
       // setMute also creates the inner VAPView, which enableOldVersion
       // must be applied to before playback parses the file.
       view.setMute(options.mute)
@@ -139,13 +135,9 @@ final class VapPlayerInstance: NSObject {
         if options.enableOldVersion {
           inner.enableOldVersion(true)
         }
-        if !hasVapcBox || options.contentMode == .scaleToFill {
-          // The wrap view never sizes the inner view for scaleToFill
-          // (its layout switch-case is empty) nor for files without a
-          // vapc config, so keep it matched to the wrap view's bounds.
-          inner.frame = view.bounds
-          inner.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        }
+        // The wrap view's scaleToFill layout case is a no-op.
+        inner.frame = view.bounds
+        inner.autoresizingMask = [.flexibleWidth, .flexibleHeight]
       }
       view.playHWDMP4(
         options.path,

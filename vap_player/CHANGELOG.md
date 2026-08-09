@@ -1,5 +1,17 @@
 ## Unreleased
 
+- Make all scale types work consistently for platform-view and texture
+  renderers, including VAP v1 files that carry no `vapc` config box.
+- Read the animation's size, frame count and fps from the mp4 during
+  `initialize()`, so `VapPlayerValue.size` and `aspectRatio` can be used for
+  layout before playback starts and the animation is fitted correctly from
+  its first frame.
+- Only clip the renderer for `VapScaleType.centerCrop`, and size it in place
+  for the other scale types, to keep cheap layouts off the platform-view
+  clipping path.
+- Use Flutter's Swift Package Manager integration exclusively in the iOS
+  example project.
+
 ## 2.0.1
 
 - Expose typed playback and interaction events through the controller's

@@ -36,6 +36,7 @@ class VapPlayerInstance(
     private var pendingPlay: PlatformPlayOptions? = null
     private var mute = false
     private var repeatCount = 0L
+    @Volatile private var configReadySent = false
 
     private val fetchBridge = FetchResourceBridge(
         playerId,
@@ -116,6 +117,7 @@ class VapPlayerInstance(
     }
 
     private fun doPlay(view: IAnimView, options: PlatformPlayOptions) {
+        configReadySent = false
         view.setLoop(toNativeLoop(options.repeatCount))
         view.setMute(options.mute)
         options.fps?.let { view.setFps(it.toInt()) }
@@ -153,6 +155,14 @@ class VapPlayerInstance(
     // ------------------------------------------------------------------
 
     override fun onVideoConfigReady(config: AnimConfig): Boolean {
+        sendConfigReadyOnce(config)
+        return true
+    }
+
+    @Synchronized
+    private fun sendConfigReadyOnce(config: AnimConfig) {
+        if (configReadySent || config.width <= 0 || config.height <= 0) return
+        configReadySent = true
         textureView?.onConfigReady(config)
         sendEvent(
             ConfigReadyEvent(
@@ -165,7 +175,6 @@ class VapPlayerInstance(
                 isMix = config.isMix,
             )
         )
-        return true
     }
 
     override fun onVideoStart() {
@@ -173,6 +182,14 @@ class VapPlayerInstance(
     }
 
     override fun onVideoRender(frameIndex: Int, config: AnimConfig?) {
+        // V1 files have no vapc box, so VAP derives a default config from the
+        // decoded video — but onVideoConfigReady already fired, before those
+        // dimensions were known. The first render callback is the earliest one
+        // that carries them. Check the flag before locking: this runs on the
+        // render thread for every frame.
+        if (!configReadySent) {
+            config?.let { sendConfigReadyOnce(it) }
+        }
         if (creationOptions.enableFrameEvents) {
             sendEvent(FrameRenderedEvent(frameIndex.toLong()))
         }

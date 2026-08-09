@@ -108,11 +108,10 @@ class AndroidVapPlayer extends VapPlayerPlatform {
         path: options.path,
         repeatCount: options.repeatCount,
         mute: options.mute,
-        scaleType: switch (options.scaleType) {
-          VapScaleType.fitXY => PlatformScaleType.fitXY,
-          VapScaleType.fitCenter => PlatformScaleType.fitCenter,
-          VapScaleType.centerCrop => PlatformScaleType.centerCrop,
-        },
+        // The Flutter layout applies the requested fit around both Texture
+        // and PlatformView renderers. Keep the native renderer filling that
+        // fitted surface; its V1 config arrives too late for native scaling.
+        scaleType: PlatformScaleType.fitXY,
         enableOldVersion: options.enableOldVersion,
         fps: options.fps,
       ),
@@ -173,34 +172,11 @@ class AndroidVapPlayer extends VapPlayerPlatform {
   Widget buildViewWithOptions(VapViewOptions options) {
     final int playerId = options.playerId;
     return switch (_playerWith(playerId).viewState) {
-      _TextureVapViewState(:final int textureId) => _fittedTexture(
-        textureId,
-        options,
+      _TextureVapViewState(:final int textureId) => Texture(
+        textureId: textureId,
       ),
       _PlatformVapViewState() => PlatformViewPlayer(playerId: playerId),
     };
-  }
-
-  /// Applies [VapViewOptions.scaleType] around a [Texture] with Flutter
-  /// layout, since the headless texture-mode renderer cannot scale
-  /// natively.
-  static Widget _fittedTexture(int textureId, VapViewOptions options) {
-    final Widget texture = Texture(textureId: textureId);
-    final Size? size = options.size;
-    // Before the vapc config is parsed the animation size is unknown, so
-    // the texture can only fill the view.
-    if (options.scaleType == VapScaleType.fitXY ||
-        size == null ||
-        size.isEmpty) {
-      return texture;
-    }
-    return FittedBox(
-      fit: options.scaleType == VapScaleType.centerCrop
-          ? BoxFit.cover
-          : BoxFit.contain,
-      clipBehavior: Clip.hardEdge,
-      child: SizedBox(width: size.width, height: size.height, child: texture),
-    );
   }
 
   _PlayerInstance _playerWith(int playerId) {

@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Publish the decoder-derived fallback config for VAP v1 files and leave final
+  scaling to the app-facing Flutter layout in both rendering modes.
+- Check for an already-published config before locking, so steady-state
+  playback does not synchronize on the render thread for every frame.
+
 ## 2.0.0
 
 - Breaking: adopt the per-player platform contract with explicit creation,

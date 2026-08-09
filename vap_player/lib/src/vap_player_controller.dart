@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:vap_player_platform_interface/vap_player_platform_interface.dart';
 
 import 'source_cache.dart';
+import 'vap_metadata.dart';
 
 VapPlayerPlatform get _platform => VapPlayerPlatform.instance;
 
@@ -56,8 +57,8 @@ class VapPlayerOptions {
   /// Whether the audio track starts muted.
   final bool mute;
 
-  /// How the animation is fitted into the [VapPlayer] widget. Applied
-  /// natively in platform-view mode and by Flutter layout in texture mode.
+  /// How the animation is fitted into the [VapPlayer] widget. Applied by a
+  /// stable Flutter layout around both texture and platform-view renderers.
   final VapScaleType scaleType;
 
   /// Optional fps override (Android only).
@@ -109,17 +110,20 @@ class VapPlayerValue {
   /// True once playback has finished (all repeats done or stopped).
   final bool isCompleted;
 
-  /// Intended display size of the animation. Populated when the vapc
-  /// config is parsed, shortly after [VapPlayerController.play].
+  /// Intended display size of the animation. Read from the mp4 by
+  /// [VapPlayerController.initialize], and refined by the platform once it
+  /// has parsed the file.
   final Size size;
 
   /// Size of the underlying mp4 video.
   final Size videoSize;
 
-  /// Total number of frames (0 until the config is parsed).
+  /// Total number of frames, or 0 when the file does not declare one (VAP v1
+  /// files only report it once playback has started).
   final int frameCount;
 
-  /// Frames per second (0 until the config is parsed).
+  /// Frames per second, or 0 when the file does not declare one (VAP v1
+  /// files only report it once playback has started).
   final int fps;
 
   /// Whether the animation declares VAPX mix resources.
@@ -190,9 +194,9 @@ class VapPlayerValue {
 /// Controls a native VAP player and publishes its state.
 ///
 /// Unlike video_player there is no prepare/seek step: [play] always starts
-/// the animation from the first frame, and the animation's size/frame
-/// metadata becomes available shortly after [play] via
-/// [VapPlayerValue.size] etc.
+/// the animation from the first frame. The animation's size is read from the
+/// mp4 during [initialize], so [VapPlayerValue.size] is usable for layout
+/// before playback begins.
 class VapPlayerController extends ValueNotifier<VapPlayerValue> {
   /// Plays a VAP mp4 bundled as a Flutter asset.
   VapPlayerController.asset(
@@ -262,7 +266,10 @@ class VapPlayerController extends ValueNotifier<VapPlayerValue> {
   Stream<VapEvent> get events => _eventsController.stream;
 
   /// Creates the native player, resolves the data source to a local file,
-  /// and subscribes to player events.
+  /// reads the animation's size from it, and subscribes to player events.
+  ///
+  /// This performs real file I/O, so widget tests must call it inside
+  /// `tester.runAsync` rather than the FakeAsync test zone.
   Future<void> initialize() async {
     final String localPath = switch (dataSourceType) {
       VapDataSourceType.asset => await SourceCache.materializeAsset(
@@ -278,6 +285,14 @@ class VapPlayerController extends ValueNotifier<VapPlayerValue> {
       return;
     }
     _localPath = localPath;
+
+    // Read the animation's dimensions up front so [VapPlayer] can fit it from
+    // its first frame. The platform's config-ready event refines this later,
+    // and covers files this cannot parse.
+    final VapMetadata? metadata = await readVapMetadata(localPath);
+    if (_isDisposed) {
+      return;
+    }
 
     _playerId = await _platform.create(
       VapCreationOptions(
@@ -300,6 +315,11 @@ class VapPlayerController extends ValueNotifier<VapPlayerValue> {
     value = value.copyWith(
       isInitialized: true,
       canPause: _platform.isPauseResumeSupported,
+      size: metadata?.size,
+      videoSize: metadata?.videoSize,
+      frameCount: metadata?.frameCount,
+      fps: metadata?.fps,
+      isMix: metadata?.isMix,
     );
   }
 

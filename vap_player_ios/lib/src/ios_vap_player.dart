@@ -90,11 +90,9 @@ class IosVapPlayer extends VapPlayerPlatform {
         path: options.path,
         repeatCount: options.repeatCount,
         mute: options.mute,
-        contentMode: switch (options.scaleType) {
-          VapScaleType.fitXY => PlatformContentMode.scaleToFill,
-          VapScaleType.fitCenter => PlatformContentMode.aspectFit,
-          VapScaleType.centerCrop => PlatformContentMode.aspectFill,
-        },
+        // Flutter fits the stable platform view after config arrives. The
+        // native wrapper cannot aspect-fit V1 files without a vapc model.
+        contentMode: PlatformContentMode.scaleToFill,
         enableOldVersion: options.enableOldVersion,
       ),
     );

@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Leave final scaling to the app-facing Flutter layout instead of the nil vapc
+  model, which cannot describe a VAP v1 file.
+- Drop the per-frame legacy config callback: the app-facing package now reads
+  those dimensions from the mp4 before playback starts.
+
 ## 2.0.0
 
 - Breaking: adopt the per-player platform contract with explicit creation,

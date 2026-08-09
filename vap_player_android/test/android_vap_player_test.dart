@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vap_player_android/src/android_vap_player.dart';
 import 'package:vap_player_android/src/messages.g.dart';
+import 'package:vap_player_android/src/platform_view_player.dart';
 import 'package:vap_player_platform_interface/vap_player_platform_interface.dart';
 
 void main() {
@@ -42,40 +43,31 @@ void main() {
     },
   );
 
-  test(
-    'texture view applies fitCenter and centerCrop with FittedBox',
-    () async {
-      final int playerId = await player.create(
-        const VapCreationOptions(viewType: VapViewType.textureView),
-      );
+  test('texture view leaves fitting to the public VapPlayer widget', () async {
+    final int playerId = await player.create(
+      const VapCreationOptions(viewType: VapViewType.textureView),
+    );
 
-      final Widget fitCenter = player.buildViewWithOptions(
-        VapViewOptions(
-          playerId: playerId,
-          scaleType: VapScaleType.fitCenter,
-          size: const Size(750, 1250),
-        ),
-      );
-      expect(fitCenter, isA<FittedBox>());
-      expect((fitCenter as FittedBox).fit, BoxFit.contain);
-      final SizedBox box = fitCenter.child! as SizedBox;
-      expect(box.width, 750);
-      expect(box.height, 1250);
-      expect(box.child, isA<Texture>());
+    final Widget fitCenter = player.buildViewWithOptions(
+      VapViewOptions(
+        playerId: playerId,
+        scaleType: VapScaleType.fitCenter,
+        size: const Size(750, 1250),
+      ),
+    );
+    expect(fitCenter, isA<Texture>());
 
-      final Widget centerCrop = player.buildViewWithOptions(
-        VapViewOptions(
-          playerId: playerId,
-          scaleType: VapScaleType.centerCrop,
-          size: const Size(750, 1250),
-        ),
-      );
-      expect((centerCrop as FittedBox).fit, BoxFit.cover);
-      expect(centerCrop.clipBehavior, Clip.hardEdge);
-    },
-  );
+    final Widget centerCrop = player.buildViewWithOptions(
+      VapViewOptions(
+        playerId: playerId,
+        scaleType: VapScaleType.centerCrop,
+        size: const Size(750, 1250),
+      ),
+    );
+    expect(centerCrop, isA<Texture>());
+  });
 
-  test('texture view stays unfitted for fitXY or unknown size', () async {
+  test('texture view remains a raw renderer for every scale option', () async {
     final int playerId = await player.create(
       const VapCreationOptions(viewType: VapViewType.textureView),
     );
@@ -120,7 +112,35 @@ void main() {
     expect(view, isNot(isA<Texture>()));
   });
 
-  test('play maps options to pigeon', () async {
+  testWidgets('platform view identity follows the player id', (
+    WidgetTester tester,
+  ) async {
+    late PlatformViewLink firstLink;
+    late PlatformViewLink replacementLink;
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Builder(
+          builder: (BuildContext context) {
+            firstLink =
+                const PlatformViewPlayer(playerId: 3).build(context)
+                    as PlatformViewLink;
+            replacementLink =
+                const PlatformViewPlayer(playerId: 4).build(context)
+                    as PlatformViewLink;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+
+    expect(firstLink.key, const ValueKey<int>(3));
+    expect(replacementLink.key, const ValueKey<int>(4));
+    expect(replacementLink.key, isNot(firstLink.key));
+  });
+
+  test('play keeps the native renderer in fitXY mode', () async {
     final int playerId = await player.create(const VapCreationOptions());
     await player.play(
       playerId,
@@ -138,7 +158,7 @@ void main() {
     expect(options.path, '/x/y.mp4');
     expect(options.repeatCount, -1);
     expect(options.mute, true);
-    expect(options.scaleType, PlatformScaleType.fitCenter);
+    expect(options.scaleType, PlatformScaleType.fitXY);
     expect(options.fps, 30);
     expect(options.enableOldVersion, true);
   });

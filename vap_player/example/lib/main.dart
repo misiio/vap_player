@@ -62,6 +62,22 @@ class HomePage extends StatelessWidget {
   }
 }
 
+/// The demo animations. `test.mp4` has no `vapc` box (a VAP v1 file), so it
+/// exercises the path where the animation's size can only come from the mp4
+/// header; the others carry a config.
+enum DemoSource {
+  v1('test.mp4', 'V1'),
+  v2('test2.mp4', 'V2'),
+  demo('demo.mp4', 'Demo');
+
+  const DemoSource(this.fileName, this.label);
+
+  final String fileName;
+  final String label;
+
+  String get assetKey => 'assets/vap/$fileName';
+}
+
 class PlayerPage extends StatefulWidget {
   const PlayerPage.texture({super.key}) : viewType = VapViewType.textureView;
   const PlayerPage.platformView({super.key})
@@ -76,6 +92,7 @@ class PlayerPage extends StatefulWidget {
 class _PlayerPageState extends State<PlayerPage> {
   VapPlayerController? _controller;
   VapScaleType _scaleType = VapScaleType.fitCenter;
+  DemoSource _source = DemoSource.v1;
 
   @override
   void initState() {
@@ -85,7 +102,7 @@ class _PlayerPageState extends State<PlayerPage> {
 
   Future<void> _createController() async {
     final VapPlayerController controller = VapPlayerController.asset(
-      'assets/vap/demo.mp4',
+      _source.assetKey,
       options: VapPlayerOptions(
         viewType: widget.viewType,
         repeatCount: -1,
@@ -105,14 +122,24 @@ class _PlayerPageState extends State<PlayerPage> {
     await controller.play();
   }
 
-  Future<void> _switchScaleType(VapScaleType scaleType) async {
-    // Scale type is applied at play time, so restart with a new controller.
-    _scaleType = scaleType;
+  /// Options are fixed for a controller's lifetime, so changing one means
+  /// tearing the player down and building a new one.
+  Future<void> _restart() async {
     final VapPlayerController? old = _controller;
     _controller = null;
     setState(() {});
     await old?.dispose();
     await _createController();
+  }
+
+  Future<void> _switchScaleType(VapScaleType scaleType) async {
+    _scaleType = scaleType;
+    await _restart();
+  }
+
+  Future<void> _switchSource(DemoSource source) async {
+    _source = source;
+    await _restart();
   }
 
   @override
@@ -152,6 +179,38 @@ class _PlayerPageState extends State<PlayerPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
+                    // The size is read from the mp4 during initialize(), so it
+                    // is already correct before the first frame renders.
+                    if (controller != null)
+                      ValueListenableBuilder<VapPlayerValue>(
+                        valueListenable: controller,
+                        builder: (BuildContext context, VapPlayerValue value, _) {
+                          final Size size = value.size;
+                          final Size video = value.videoSize;
+                          return Text(
+                            'size ${size.width.toInt()}×${size.height.toInt()}'
+                            '   video ${video.width.toInt()}'
+                            '×${video.height.toInt()}'
+                            '   ${value.frameCount} frames @ ${value.fps}fps',
+                            style: const TextStyle(color: Colors.white70),
+                          );
+                        },
+                      ),
+                    const SizedBox(height: 8),
+                    SegmentedButton<DemoSource>(
+                      segments: <ButtonSegment<DemoSource>>[
+                        for (final DemoSource source in DemoSource.values)
+                          ButtonSegment<DemoSource>(
+                            value: source,
+                            label: Text(source.label),
+                          ),
+                      ],
+                      selected: <DemoSource>{_source},
+                      onSelectionChanged: (Set<DemoSource> selection) {
+                        _switchSource(selection.first);
+                      },
+                    ),
+                    const SizedBox(height: 8),
                     SegmentedButton<VapScaleType>(
                       segments: const <ButtonSegment<VapScaleType>>[
                         ButtonSegment<VapScaleType>(
@@ -173,26 +232,25 @@ class _PlayerPageState extends State<PlayerPage> {
                       },
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
                       children: <Widget>[
                         FilledButton(
                           onPressed: () => controller?.play(),
                           child: const Text('Play'),
                         ),
-                        const SizedBox(width: 8),
                         FilledButton(
                           onPressed: () => controller?.stop(),
                           child: const Text('Stop'),
                         ),
-                        const SizedBox(width: 8),
                         FilledButton(
                           onPressed: (controller?.value.canPause ?? false)
                               ? () => controller?.pause()
                               : null,
                           child: const Text('Pause'),
                         ),
-                        const SizedBox(width: 8),
                         FilledButton(
                           onPressed: (controller?.value.canPause ?? false)
                               ? () => controller?.resume()

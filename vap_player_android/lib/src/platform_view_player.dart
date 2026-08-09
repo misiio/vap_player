@@ -23,6 +23,10 @@ class PlatformViewPlayer extends StatelessWidget {
     // Touches are passed through to the native view so VAPX resource-click
     // detection keeps working.
     return PlatformViewLink(
+      // PlatformViewLink only recreates its native view when its key or
+      // viewType changes. Tie its identity to the player so a replacement
+      // controller cannot keep the previous player's native AnimView.
+      key: ValueKey<int>(playerId),
       viewType: viewType,
       surfaceFactory:
           (BuildContext context, PlatformViewController controller) {

@@ -36,7 +36,7 @@ void main() {
     expect(view, isA<UiKitView>());
   });
 
-  test('play maps scale type to content mode', () async {
+  test('play keeps the native renderer in scaleToFill mode', () async {
     final int playerId = await player.create(const VapCreationOptions());
     await player.play(
       playerId,
@@ -51,7 +51,7 @@ void main() {
     final PlatformPlayOptions options = instanceApi.lastPlayOptions!;
     expect(options.path, '/x/y.mp4');
     expect(options.repeatCount, 2);
-    expect(options.contentMode, PlatformContentMode.aspectFill);
+    expect(options.contentMode, PlatformContentMode.scaleToFill);
     expect(options.enableOldVersion, true);
   });
 

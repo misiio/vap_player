@@ -17,9 +17,9 @@ enum VapViewType {
 
 /// How the animation is scaled inside its view.
 ///
-/// In [VapViewType.platformView] mode the scaling is applied by the native
-/// view; in texture mode it is applied by Flutter layout around the
-/// [Texture] widget.
+/// Platform implementations always render the animation filling whatever box
+/// they are given; the fit itself is applied by the app-facing player widget,
+/// so that it behaves identically across platforms and view types.
 enum VapScaleType {
   /// Stretch to fill the view (Android FIT_XY / iOS ScaleToFill).
   fitXY,
@@ -75,7 +75,11 @@ class VapPlayOptions {
   /// Whether the mp4's audio track is muted.
   final bool mute;
 
-  /// Scale mode, effective in platform-view mode only.
+  /// The requested scale mode.
+  ///
+  /// Implementations normalize their native renderer to fill and leave the fit
+  /// to the app-facing player widget, so this is carried for completeness
+  /// rather than acted on.
   final VapScaleType scaleType;
 
   /// Optional fps override (Android only; ignored on iOS).
@@ -103,16 +107,15 @@ class VapViewOptions {
 
   /// How the animation is fitted into the view.
   ///
-  /// Implementations that render into a Flutter [Texture] apply this with
-  /// Flutter layout; platform-view implementations apply it natively and
-  /// may ignore this field.
+  /// Implementations return a renderer that fills the box it is given; the
+  /// caller applies the fit around it. This is passed for implementations that
+  /// need to know what they are being sized for.
   final VapScaleType scaleType;
 
-  /// The animation's display size, or null (or [Size.zero]) while the vapc
-  /// config has not been parsed yet.
+  /// The animation's display size, or null (or [Size.zero]) while it is not
+  /// known yet.
   ///
-  /// Required for texture implementations to apply [VapScaleType.fitCenter]
-  /// and [VapScaleType.centerCrop]; without it the animation fills the
-  /// view.
+  /// Like [scaleType], this describes the fit the caller is applying rather
+  /// than something the implementation acts on.
   final Size? size;
 }

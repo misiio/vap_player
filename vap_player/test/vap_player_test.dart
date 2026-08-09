@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
@@ -17,9 +18,50 @@ void main() {
   });
 
   VapPlayerController createFileController({VapPlayerOptions? options}) {
-    // A file source avoids asset/network materialization in tests; the
-    // file is never opened, only its path is forwarded.
+    // A file source avoids asset/network materialization in tests. The file
+    // does not exist, so initialize() finds no metadata to read and the
+    // player's size stays unknown until a config event arrives.
     return VapPlayerController.file(File('/tmp/fake.mp4'), options: options);
+  }
+
+  Size rendererSize(WidgetTester tester) =>
+      tester.getSize(find.byKey(const Key('renderer')));
+
+  /// Pumps a player whose animation is 100x200 into a 300x200 viewport.
+  ///
+  /// The source is a real mp4 fixture, so the size is known before the first
+  /// build — exactly as it is in an app.
+  Future<VapPlayerController> pumpSizedPlayer(
+    WidgetTester tester, {
+    required VapScaleType scaleType,
+    Widget Function(Widget player)? wrap,
+  }) async {
+    final Directory tempDir = Directory.systemTemp.createTempSync('vap');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final File file = File('${tempDir.path}/animation.mp4')
+      ..writeAsBytesSync(
+        vapcFixture(
+          '{"info":{"v":2,"f":0,"w":100,"h":200,"videoW":200,'
+          '"videoH":200,"fps":0,"isVapx":0}}',
+        ),
+      );
+
+    fakePlatform.view = const SizedBox.expand(key: Key('renderer'));
+    final VapPlayerController controller = VapPlayerController.file(
+      file,
+      options: VapPlayerOptions(scaleType: scaleType),
+    );
+    // initialize() reads the mp4 header, which is real I/O that the FakeAsync
+    // test zone never pumps.
+    await tester.runAsync(controller.initialize);
+    expect(controller.value.size, const Size(100, 200));
+
+    final Widget player = VapPlayer(controller);
+    await tester.pumpWidget(
+      wrap?.call(player) ??
+          Center(child: SizedBox(width: 300, height: 200, child: player)),
+    );
+    return controller;
   }
 
   group('VapPlayerController', () {
@@ -31,6 +73,38 @@ void main() {
       expect(controller.value.isInitialized, true);
       expect(fakePlatform.calls, contains('create'));
       expect(fakePlatform.creationOptions!.viewType, VapViewType.platformView);
+    });
+
+    test('initialize reads the animation size from the mp4', () async {
+      final Directory tempDir = Directory.systemTemp.createTempSync('vap');
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final File file = File('${tempDir.path}/animation.mp4')
+        ..writeAsBytesSync(
+          vapcFixture(
+            '{"info":{"v":2,"f":80,"w":736,"h":576,"videoW":752,'
+            '"videoH":880,"fps":25,"isVapx":1}}',
+          ),
+        );
+
+      final VapPlayerController controller = VapPlayerController.file(file);
+      await controller.initialize();
+
+      // Available before play(), so the widget can lay the animation out
+      // correctly from its first frame.
+      expect(controller.value.size, const Size(736, 576));
+      expect(controller.value.videoSize, const Size(752, 880));
+      expect(controller.value.frameCount, 80);
+      expect(controller.value.fps, 25);
+      expect(controller.value.isMix, true);
+      expect(controller.value.aspectRatio, closeTo(736 / 576, 0.0001));
+    });
+
+    test('initialize keeps the size unknown for an unreadable source', () async {
+      final VapPlayerController controller = createFileController();
+      await controller.initialize();
+
+      expect(controller.value.size, Size.zero);
+      expect(controller.value.isInitialized, true);
     });
 
     test('initialize forwards view type and frame events flag', () async {
@@ -367,7 +441,7 @@ void main() {
       final VapPlayerController controller = createFileController(
         options: const VapPlayerOptions(scaleType: VapScaleType.fitCenter),
       );
-      await controller.initialize();
+      await tester.runAsync(controller.initialize);
 
       await tester.pumpWidget(VapPlayer(controller));
       VapViewOptions options = fakePlatform.lastViewOptions!;
@@ -398,7 +472,155 @@ void main() {
       // FakeAsync test zone.
       await tester.runAsync(controller.dispose);
     });
+
+    testWidgets('fitXY leaves the renderer unwrapped', (
+      WidgetTester tester,
+    ) async {
+      final VapPlayerController controller = await pumpSizedPlayer(
+        tester,
+        scaleType: VapScaleType.fitXY,
+      );
+
+      // Clipping a platform view is expensive, so nothing that fills its box
+      // should be wrapped in a clip or an overflow box.
+      expect(find.byType(ClipRect), findsNothing);
+      expect(find.byType(OverflowBox), findsNothing);
+      expect(rendererSize(tester), const Size(300, 200));
+      await tester.runAsync(controller.dispose);
+    });
+
+    testWidgets('fitCenter contains the animation without clipping', (
+      WidgetTester tester,
+    ) async {
+      final VapPlayerController controller = await pumpSizedPlayer(
+        tester,
+        scaleType: VapScaleType.fitCenter,
+      );
+
+      // A contained animation never overflows, so it needs no clip.
+      expect(find.byType(ClipRect), findsNothing);
+      expect(rendererSize(tester), const Size(100, 200));
+      await tester.runAsync(controller.dispose);
+    });
+
+    testWidgets('centerCrop covers the viewport inside a clip', (
+      WidgetTester tester,
+    ) async {
+      final VapPlayerController controller = await pumpSizedPlayer(
+        tester,
+        scaleType: VapScaleType.centerCrop,
+      );
+
+      expect(find.byType(ClipRect), findsOneWidget);
+      expect(rendererSize(tester), const Size(300, 600));
+      await tester.runAsync(controller.dispose);
+    });
+
+    testWidgets('centerCrop falls back to containing when unbounded', (
+      WidgetTester tester,
+    ) async {
+      final VapPlayerController controller = await pumpSizedPlayer(
+        tester,
+        scaleType: VapScaleType.centerCrop,
+        // A scroll view gives its children unbounded height.
+        wrap: (Widget player) => Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: SizedBox(
+              width: 300,
+              child: ListView(shrinkWrap: true, children: <Widget>[player]),
+            ),
+          ),
+        ),
+      );
+
+      // Covering is undefined without a viewport to cover; containing keeps
+      // the aspect ratio instead of asserting on an infinite size.
+      expect(tester.takeException(), isNull);
+      expect(rendererSize(tester), const Size(300, 600));
+      await tester.runAsync(controller.dispose);
+    });
+
+    testWidgets('resizes the renderer in place when the size arrives', (
+      WidgetTester tester,
+    ) async {
+      final GlobalKey<_CountingRendererState> rendererKey =
+          GlobalKey<_CountingRendererState>();
+      fakePlatform.view = _CountingRenderer(key: rendererKey);
+      final VapPlayerController controller = createFileController(
+        options: const VapPlayerOptions(scaleType: VapScaleType.fitCenter),
+      );
+      await tester.runAsync(controller.initialize);
+
+      await tester.pumpWidget(
+        Center(
+          child: SizedBox(
+            width: 300,
+            height: 200,
+            child: VapPlayer(controller),
+          ),
+        ),
+      );
+      final _CountingRendererState originalState = rendererKey.currentState!;
+      expect(
+        tester.getSize(find.byType(_CountingRenderer)),
+        const Size(300, 200),
+      );
+
+      fakePlatform.sendEvent(
+        controller.playerId,
+        const VapConfigReadyEvent(
+          width: 100,
+          height: 200,
+          videoWidth: 200,
+          videoHeight: 200,
+          frameCount: 0,
+          fps: 0,
+          isMix: false,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      // Replacing the renderer here would tear down a live platform view.
+      expect(rendererKey.currentState, same(originalState));
+      expect(
+        tester.getSize(find.byType(_CountingRenderer)),
+        const Size(100, 200),
+      );
+      await tester.runAsync(controller.dispose);
+    });
   });
+}
+
+/// A minimal mp4 carrying a top-level `vapc` box holding [json].
+List<int> vapcFixture(String json) {
+  List<int> box(String type, List<int> payload) => <int>[
+    ...<int>[
+      payload.length + 8 >> 24 & 0xFF,
+      payload.length + 8 >> 16 & 0xFF,
+      payload.length + 8 >> 8 & 0xFF,
+      payload.length + 8 & 0xFF,
+    ],
+    ...ascii.encode(type),
+    ...payload,
+  ];
+  return <int>[
+    ...box('ftyp', ascii.encode('isom')),
+    ...box('vapc', utf8.encode(json)),
+  ];
+}
+
+class _CountingRenderer extends StatefulWidget {
+  const _CountingRenderer({super.key});
+
+  @override
+  State<_CountingRenderer> createState() => _CountingRendererState();
+}
+
+class _CountingRendererState extends State<_CountingRenderer> {
+  @override
+  Widget build(BuildContext context) => const SizedBox.expand();
 }
 
 class FakeVapPlayerPlatform extends VapPlayerPlatform {
@@ -417,6 +639,7 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   bool pauseResumeSupported = false;
   Object? disposeError;
   int nextPlayerId = 1;
+  Widget view = const SizedBox();
 
   void sendEvent(int playerId, VapEvent event) {
     eventControllers[playerId]!.add(event);
@@ -500,6 +723,6 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   @override
   Widget buildViewWithOptions(VapViewOptions options) {
     lastViewOptions = options;
-    return const SizedBox();
+    return view;
   }
 }
