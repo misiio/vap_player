@@ -1,9 +1,19 @@
 ## Unreleased
 
-- Breaking: introduce `VapPlayerController` and `VapPlayer` as the app-facing
-  API with a per-player lifecycle.
-- Add Android texture rendering, repeat controls, iOS pause/resume, detailed
-  playback state, and VAPX text/image delegates.
+## 2.0.0
+
+- Breaking: replace `VapController` and play-scoped sources/options with
+  source-bound `VapPlayerController` constructors, explicit `initialize()`,
+  parameterless `play()`, and a per-player lifecycle.
+- Breaking: expose playback through `VapPlayerValue` state and resource-click
+  callbacks, and replace Flutter `BoxFit` configuration with `VapScaleType`.
+- Breaking: remove `VapNetworkCache`; asset and network sources are now
+  materialized to a Dart-managed local cache before native playback, with
+  support for network request headers.
+- Add selectable platform-view and texture rendering. Android supports both
+  modes; iOS falls back to a platform view for texture requests.
+- Add repeat-count and mute controls, detailed config/frame/error state, iOS
+  pause/resume, and VAPX text/image resource delegates.
 
 ## 1.0.0
 

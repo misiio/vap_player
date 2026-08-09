@@ -1,10 +1,16 @@
 ## Unreleased
 
+## 2.0.0
+
+- Breaking: adopt the per-player platform contract with explicit creation,
+  playback, control, rendering, event, and disposal APIs.
 - Add Swift Package Manager support while retaining CocoaPods compatibility.
-- Pin SPM builds to QGVAPlayer `1.0.19-spm` from the maintained
-  `misiio/vap` fork.
-- Add native per-player QGVA rendering with pause/resume, repeat, VAPX
-  resources, and event channels.
+- Use QGVAPlayer `1.0.19` with CocoaPods and pin SPM builds to
+  `misiio/vap` `1.0.19-spm`.
+- Add native per-player QGVA rendering with pause/resume, repeat, mute, scale,
+  config/frame/error events, and VAPX text/image resources.
+- Fall back to a platform view when texture rendering is requested because
+  QGVAPlayer renders directly to an on-screen Metal layer.
 - Report VAP old-version parse failures as error `10005` before native cleanup.
 
 ## 1.0.0

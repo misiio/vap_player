@@ -1,8 +1,16 @@
 ## Unreleased
 
-- Add native per-player VAP rendering with Flutter textures, platform views,
-  VAPX resources, and event channels while retaining the
-  `app.misi.vap_player_android` namespace.
+## 2.0.0
+
+- Breaking: adopt the per-player platform contract with explicit creation,
+  playback, control, rendering, event, and disposal APIs.
+- Add Dart plugin registration and native rendering through Flutter textures
+  or platform views while retaining the `app.misi.vap_player_android`
+  namespace.
+- Add repeat-count, mute, scale, FPS, config/frame/error event, and VAPX
+  text/image resource support.
+- Report pause and resume as unsupported because the Android VAP renderer
+  cannot pause playback.
 
 ## 1.0.0
 

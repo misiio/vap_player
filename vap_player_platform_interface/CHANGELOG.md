@@ -1,7 +1,14 @@
 ## Unreleased
 
-- Breaking: introduce per-player creation, playback, control, event, rendering,
-  and VAPX resource interfaces.
+## 2.0.0
+
+- Breaking: replace the global event stream and view-oriented playback API
+  with per-player creation, playback, control, rendering, event, and disposal
+  interfaces.
+- Breaking: remove the native network-cache contract; sources are now resolved
+  to local files by the app-facing package.
+- Add sealed `VapEvent` types, player creation/play/view options, view and
+  scale types, and VAPX text/image resource delegates.
 
 ## 1.0.0
 

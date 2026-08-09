@@ -1,5 +1,5 @@
 group = "app.misi.vap_player_android"
-version = "1.0-SNAPSHOT"
+version = "2.0.0"
 
 buildscript {
     val kotlinVersion = "2.2.20"
