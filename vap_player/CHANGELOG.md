@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 2.0.1
+
 - Expose typed playback and interaction events through the controller's
   broadcast `events` stream.
 
