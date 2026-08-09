@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Clarify that platform renderers fill their assigned box while the app-facing
+  player applies the requested scale consistently across view types.
+
 ## 2.0.0
 
 - Breaking: replace the global event stream and view-oriented playback API

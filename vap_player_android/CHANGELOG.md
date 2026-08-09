@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 2.1.0
+
 - Publish the decoder-derived fallback config for VAP v1 files and leave final
   scaling to the app-facing Flutter layout in both rendering modes.
 - Check for an already-published config before locking, so steady-state

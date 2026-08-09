@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 2.1.0
+
 - Make all scale types work consistently for platform-view and texture
   renderers, including VAP v1 files that carry no `vapc` config box.
 - Read the animation's size, frame count and fps from the mp4 during
@@ -9,6 +11,8 @@
 - Only clip the renderer for `VapScaleType.centerCrop`, and size it in place
   for the other scale types, to keep cheap layouts off the platform-view
   clipping path.
+- Preserve the renderer's identity while its metadata becomes available, so
+  an active platform view is not recreated during layout.
 - Use Flutter's Swift Package Manager integration exclusively in the iOS
   example project.
 
