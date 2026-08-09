@@ -242,6 +242,8 @@ class VapPlayerController extends ValueNotifier<VapPlayerValue> {
 
   int _playerId = kUninitializedPlayerId;
   String? _localPath;
+  final StreamController<VapEvent> _eventsController =
+      StreamController<VapEvent>.broadcast();
   StreamSubscription<VapEvent>? _eventSubscription;
   bool _isDisposed = false;
 
@@ -252,6 +254,12 @@ class VapPlayerController extends ValueNotifier<VapPlayerValue> {
   /// Visible for testing only.
   @visibleForTesting
   set playerId(int playerId) => _playerId = playerId;
+
+  /// Playback and interaction events emitted by this player.
+  ///
+  /// This is a broadcast stream, does not replay events, and closes when the
+  /// controller is disposed. Read [value] for the player's current state.
+  Stream<VapEvent> get events => _eventsController.stream;
 
   /// Creates the native player, resolves the data source to a local file,
   /// and subscribes to player events.
@@ -330,15 +338,22 @@ class VapPlayerController extends ValueNotifier<VapPlayerValue> {
               event.message ?? 'VAP playback failed (${event.code})',
         );
       case VapResourceClickEvent():
-        options.onResourceClick?.call(event.resource);
+        break;
+    }
+
+    // Publish after updating value so event listeners observe matching state.
+    _eventsController.add(event);
+    if (event case VapResourceClickEvent(:final resource)) {
+      options.onResourceClick?.call(resource);
     }
   }
 
-  void _onError(Object error) {
+  void _onError(Object error, StackTrace stackTrace) {
     if (_isDisposed) {
       return;
     }
     value = value.copyWith(errorDescription: error.toString());
+    _eventsController.addError(error, stackTrace);
   }
 
   /// Starts playback from the first frame.
@@ -407,12 +422,16 @@ class VapPlayerController extends ValueNotifier<VapPlayerValue> {
       return;
     }
     _isDisposed = true;
-    await _eventSubscription?.cancel();
-    if (_playerId != kUninitializedPlayerId) {
-      _platform.setResourceDelegate(_playerId, null);
-      await _platform.dispose(_playerId);
-      _playerId = kUninitializedPlayerId;
+    try {
+      await _eventSubscription?.cancel();
+      if (_playerId != kUninitializedPlayerId) {
+        _platform.setResourceDelegate(_playerId, null);
+        await _platform.dispose(_playerId);
+        _playerId = kUninitializedPlayerId;
+      }
+    } finally {
+      await _eventsController.close();
+      super.dispose();
     }
-    super.dispose();
   }
 }

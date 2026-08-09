@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Expose typed playback and interaction events through the controller's
+  broadcast `events` stream.
+
 ## 2.0.0
 
 - Breaking: replace `VapController` and play-scoped sources/options with

@@ -52,6 +52,34 @@ Sources: `VapPlayerController.asset`, `.file`, and `.networkUrl` (assets and
 network URLs are materialized to a local cache file first — the native VAP
 libraries only play local files).
 
+### Playback events
+
+`VapPlayerController` exposes a broadcast `events` stream for one-shot
+playback and interaction notifications. The stream does not replay earlier
+events and closes when the controller is disposed. Use `controller.value` for
+the current player state.
+
+```dart
+final subscription = controller.events.listen(
+  (event) {
+    switch (event) {
+      case VapCompletedEvent():
+        print('playback completed');
+      case VapErrorEvent(:final code, :final message):
+        print('playback failed: $code $message');
+      default:
+        break;
+    }
+  },
+  onError: (Object error, StackTrace stackTrace) {
+    print('event channel failed: $error');
+  },
+);
+```
+
+Frame events are emitted only when `VapPlayerOptions.enableFrameEvents` is
+enabled. Cancel application subscriptions when they are no longer needed.
+
 ### VAPX (mix resources)
 
 ```dart

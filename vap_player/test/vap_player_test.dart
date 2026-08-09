@@ -156,6 +156,101 @@ void main() {
       expect(controller.value.currentFrame, 42);
     });
 
+    test('events forwards every typed event unchanged', () async {
+      final VapPlayerController controller = createFileController();
+      final Future<List<VapEvent>> receivedFuture = controller.events
+          .take(7)
+          .toList();
+      await controller.initialize();
+
+      const VapConfigReadyEvent config = VapConfigReadyEvent(
+        width: 750,
+        height: 1250,
+        videoWidth: 900,
+        videoHeight: 1280,
+        frameCount: 100,
+        fps: 25,
+        isMix: true,
+      );
+      const VapStartedEvent started = VapStartedEvent();
+      const VapFrameEvent frame = VapFrameEvent(42);
+      const VapCompletedEvent completed = VapCompletedEvent();
+      const VapDestroyedEvent destroyed = VapDestroyedEvent();
+      const VapErrorEvent error = VapErrorEvent(
+        code: 10004,
+        message: 'decode failed',
+      );
+      const VapResourceClickEvent click = VapResourceClickEvent(
+        VapResource(id: '1', type: VapResourceType.image, tag: '[sImg1]'),
+      );
+      const List<VapEvent> sent = <VapEvent>[
+        config,
+        started,
+        frame,
+        completed,
+        destroyed,
+        error,
+        click,
+      ];
+
+      for (final VapEvent event in sent) {
+        fakePlatform.sendEvent(controller.playerId, event);
+      }
+
+      expect(await receivedFuture, orderedEquals(sent));
+    });
+
+    test('events publishes after updating controller state', () async {
+      final VapPlayerController controller = createFileController();
+      await controller.initialize();
+
+      final Future<bool> wasPlaying = controller.events
+          .where((VapEvent event) => event is VapStartedEvent)
+          .map((_) => controller.value.isPlaying)
+          .first;
+      fakePlatform.sendEvent(controller.playerId, const VapStartedEvent());
+
+      expect(await wasPlaying, true);
+    });
+
+    test('events is broadcast to multiple listeners', () async {
+      final VapPlayerController controller = createFileController();
+      await controller.initialize();
+
+      final Future<VapEvent> firstListener = controller.events.first;
+      final Future<VapEvent> secondListener = controller.events.first;
+      const VapCompletedEvent event = VapCompletedEvent();
+      fakePlatform.sendEvent(controller.playerId, event);
+
+      expect(await firstListener, same(event));
+      expect(await secondListener, same(event));
+    });
+
+    test('platform stream errors update state and reach events', () async {
+      final VapPlayerController controller = createFileController();
+      await controller.initialize();
+
+      final Completer<(Object, StackTrace)> receivedError =
+          Completer<(Object, StackTrace)>();
+      final StreamSubscription<VapEvent> subscription = controller.events
+          .listen(
+            (_) {},
+            onError: (Object error, StackTrace stackTrace) {
+              receivedError.complete((error, stackTrace));
+            },
+          );
+      final StateError error = StateError('event channel failed');
+      final StackTrace stackTrace = StackTrace.current;
+      fakePlatform.sendError(controller.playerId, error, stackTrace);
+
+      final (Object forwardedError, StackTrace forwardedStackTrace) =
+          await receivedError.future;
+      expect(forwardedError, same(error));
+      expect(forwardedStackTrace, same(stackTrace));
+      expect(controller.value.errorDescription, error.toString());
+      await subscription.cancel();
+    });
+
     test('resource click event invokes callback', () async {
       VapResource? clicked;
       final VapPlayerController controller = createFileController(
@@ -170,12 +265,17 @@ void main() {
         type: VapResourceType.image,
         tag: '[sImg1]',
       );
+      final Future<VapResourceClickEvent> streamedClick = controller.events
+          .where((VapEvent event) => event is VapResourceClickEvent)
+          .cast<VapResourceClickEvent>()
+          .first;
       fakePlatform.sendEvent(
         controller.playerId,
         const VapResourceClickEvent(resource),
       );
       await Future<void>.delayed(Duration.zero);
       expect(clicked, resource);
+      expect((await streamedClick).resource, resource);
     });
 
     test('resource delegate is registered and cleared', () async {
@@ -221,10 +321,24 @@ void main() {
       final VapPlayerController controller = createFileController();
       await controller.initialize();
       final int playerId = controller.playerId;
+      final Future<void> eventsDone = controller.events.drain<void>();
 
       await controller.dispose();
+      await eventsDone;
       expect(fakePlatform.disposedPlayers, contains(playerId));
       expect(() => controller.play(), throwsStateError);
+
+      fakePlatform.sendEvent(playerId, const VapStartedEvent());
+    });
+
+    test('dispose closes events when native teardown fails', () async {
+      final VapPlayerController controller = createFileController();
+      await controller.initialize();
+      final Future<void> eventsDone = controller.events.drain<void>();
+      fakePlatform.disposeError = StateError('dispose failed');
+
+      await expectLater(controller.dispose(), throwsStateError);
+      await eventsDone;
     });
   });
 
@@ -301,10 +415,15 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   bool? lastMute;
   int? lastRepeatCount;
   bool pauseResumeSupported = false;
+  Object? disposeError;
   int nextPlayerId = 1;
 
   void sendEvent(int playerId, VapEvent event) {
     eventControllers[playerId]!.add(event);
+  }
+
+  void sendError(int playerId, Object error, StackTrace stackTrace) {
+    eventControllers[playerId]!.addError(error, stackTrace);
   }
 
   @override
@@ -325,6 +444,10 @@ class FakeVapPlayerPlatform extends VapPlayerPlatform {
   Future<void> dispose(int playerId) async {
     calls.add('dispose');
     disposedPlayers.add(playerId);
+    final Object? error = disposeError;
+    if (error != null) {
+      throw error;
+    }
   }
 
   @override
