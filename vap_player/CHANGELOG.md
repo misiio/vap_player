@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 2.1.1
+
+- Fix Android VAPX playback in texture mode by initializing the rendering
+  context before resource shaders and textures are created.
+
 ## 2.1.0
 
 - Make all scale types work consistently for platform-view and texture

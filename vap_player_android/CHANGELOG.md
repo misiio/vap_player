@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 2.1.1
+
 - Fix VAPX playback in texture mode by initializing EGL before the resource
   renderer creates shaders and textures.
 
