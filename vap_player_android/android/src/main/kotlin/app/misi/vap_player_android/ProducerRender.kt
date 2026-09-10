@@ -174,6 +174,11 @@ internal class ProducerRender(
 
     override fun setAnimConfig(config: AnimConfig) {
         ensureSurfaceSize(config.width, config.height)
+        // Decoder.preparePlay calls the plugins' onRenderCreate immediately
+        // after setAnimConfig, before getExternalTexture. VAPX compiles its
+        // shaders and uploads resource textures there, so its EGL context
+        // must already be current on this render thread.
+        check(ensureEgl()) { "Unable to initialize the VAP render surface" }
         vertexArray.setArray(
             VertexUtil.create(
                 config.width,

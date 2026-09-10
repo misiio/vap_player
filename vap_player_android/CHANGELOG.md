@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Fix VAPX playback in texture mode by initializing EGL before the resource
+  renderer creates shaders and textures.
+
 ## 2.1.0
 
 - Publish the decoder-derived fallback config for VAP v1 files and leave final
