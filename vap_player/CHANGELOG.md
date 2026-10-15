@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 2.2.0
+
 - Pass each VAPX slot's size from the `vapc` config to the resource
   delegate as `VapResource.width` and `VapResource.height`. On iOS, which
   identifies slots by tag only, a tag shared by slots of different sizes

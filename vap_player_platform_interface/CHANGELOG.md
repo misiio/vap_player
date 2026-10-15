@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 2.1.0
+
 - Add optional `width` and `height` to `VapResource`: the slot's size in the
   animation's own pixels, so a delegate can draw an image that fills the slot
   undistorted.
