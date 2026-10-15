@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'dart:ui' show Size;
 
 import 'package:flutter/foundation.dart' show immutable;
+import 'package:vap_player_platform_interface/vap_player_platform_interface.dart'
+    show VapResource;
 
 /// Animation metadata read from a VAP mp4 before playback starts.
 ///
@@ -22,6 +24,7 @@ class VapMetadata {
     required this.fps,
     required this.isMix,
     required this.hasVapcBox,
+    this.slots = const <VapSlot>[],
   });
 
   /// Intended display size of the animation.
@@ -42,6 +45,63 @@ class VapMetadata {
 
   /// Whether the file carries a `vapc` box (a VAP v2 file).
   final bool hasVapcBox;
+
+  /// The VAPX slots the `vapc` config declares, in declaration order.
+  final List<VapSlot> slots;
+
+  /// Returns [resource] with its slot's size, or [resource] unchanged when
+  /// its slot cannot be identified.
+  ///
+  /// Android identifies a resource by its `srcId`; iOS only knows its tag,
+  /// so a tag shared by slots of different sizes is left unsized there.
+  VapResource withSlotSize(VapResource resource) {
+    VapSlot? match;
+    for (final VapSlot slot in slots) {
+      if (slot.id == resource.id && slot.tag == resource.tag) {
+        match = slot;
+        break;
+      }
+    }
+    if (match == null) {
+      for (final VapSlot slot in slots) {
+        if (slot.tag != resource.tag) {
+          continue;
+        }
+        if (match != null &&
+            (match.width != slot.width || match.height != slot.height)) {
+          return resource;
+        }
+        match = slot;
+      }
+    }
+    return match == null
+        ? resource
+        : resource.withSize(width: match.width, height: match.height);
+  }
+}
+
+/// A VAPX slot declared by an animation's `vapc` config.
+@immutable
+class VapSlot {
+  /// Creates a slot description.
+  const VapSlot({
+    required this.id,
+    required this.tag,
+    required this.width,
+    required this.height,
+  });
+
+  /// The slot's `srcId`.
+  final String id;
+
+  /// The slot's `srcTag`.
+  final String tag;
+
+  /// The slot's width in the animation's own pixels.
+  final int width;
+
+  /// The slot's height in the animation's own pixels.
+  final int height;
 }
 
 /// The size of a plain mp4 box header (32-bit size plus a four-character
@@ -187,7 +247,35 @@ VapMetadata? _metadataFromVapc(Uint8List payload) {
     fps: _asInt(info['fps']) ?? 0,
     isMix: _asInt(info['isVapx']) == 1,
     hasVapcBox: true,
+    slots: _slotsFromVapc(decoded['src']),
   );
+}
+
+List<VapSlot> _slotsFromVapc(Object? src) {
+  if (src is! List<Object?>) {
+    return const <VapSlot>[];
+  }
+  return <VapSlot>[
+    for (final Object? entry in src)
+      if (entry is Map<String, Object?>)
+        if (_slotFromVapc(entry) case final VapSlot slot) slot,
+  ];
+}
+
+VapSlot? _slotFromVapc(Map<String, Object?> entry) {
+  final Object? id = entry['srcId'];
+  final Object? tag = entry['srcTag'];
+  final int? width = _asInt(entry['w']);
+  final int? height = _asInt(entry['h']);
+  if (id == null ||
+      tag is! String ||
+      width == null ||
+      height == null ||
+      width <= 0 ||
+      height <= 0) {
+    return null;
+  }
+  return VapSlot(id: id.toString(), tag: tag, width: width, height: height);
 }
 
 /// Returns the coded size of the first video track described by [moov].

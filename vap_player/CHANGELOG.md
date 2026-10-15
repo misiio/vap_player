@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Pass each VAPX slot's size from the `vapc` config to the resource
+  delegate as `VapResource.width` and `VapResource.height`. On iOS, which
+  identifies slots by tag only, a tag shared by slots of different sizes
+  stays unsized.
+- Require `vap_player_platform_interface` 2.1.0.
+
 ## 2.1.1
 
 - Fix Android VAPX playback in texture mode by initializing the rendering

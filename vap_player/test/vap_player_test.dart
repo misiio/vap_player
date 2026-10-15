@@ -368,6 +368,50 @@ void main() {
       expect(fakePlatform.resourceDelegates[playerId], isNull);
     });
 
+    test('resource delegate receives each slot size from the vapc config', () async {
+      final Directory tempDir = Directory.systemTemp.createTempSync('vap');
+      addTearDown(() => tempDir.deleteSync(recursive: true));
+      final File file = File('${tempDir.path}/animation.mp4')
+        ..writeAsBytesSync(
+          vapcFixture(
+            '{"info":{"v":2,"f":246,"w":720,"h":1280,"isVapx":1},"src":['
+            '{"srcId":"0","srcType":"img","srcTag":"user_name","w":177,"h":35},'
+            '{"srcId":"1","srcType":"txt","srcTag":"[sTxt1]","w":336,"h":44}]}',
+          ),
+        );
+      final List<VapResource> received = <VapResource>[];
+      final VapPlayerController controller = VapPlayerController.file(
+        file,
+        options: VapPlayerOptions(
+          resourceDelegate: VapResourceDelegate(
+            resolveText: (VapResource resource) async {
+              received.add(resource);
+              return 'hi';
+            },
+            resolveImage: (VapResource resource) async {
+              received.add(resource);
+              return null;
+            },
+          ),
+        ),
+      );
+      await controller.initialize();
+
+      final VapResourceDelegate delegate =
+          fakePlatform.resourceDelegates[controller.playerId]!;
+      await delegate.resolveImage!(
+        const VapResource(id: '0', type: VapResourceType.image, tag: 'user_name'),
+      );
+      await delegate.resolveText!(
+        const VapResource(id: '1', type: VapResourceType.text, tag: '[sTxt1]'),
+      );
+
+      expect(
+        received.map((VapResource resource) => (resource.tag, resource.width, resource.height)),
+        <(String, int?, int?)>[('user_name', 177, 35), ('[sTxt1]', 336, 44)],
+      );
+    });
+
     test('canPause reflects platform support', () async {
       fakePlatform.pauseResumeSupported = true;
       final VapPlayerController controller = createFileController();

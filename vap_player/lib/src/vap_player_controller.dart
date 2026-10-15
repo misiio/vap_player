@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:vap_player_platform_interface/vap_player_platform_interface.dart';
@@ -305,8 +306,14 @@ class VapPlayerController extends ValueNotifier<VapPlayerValue> {
       return;
     }
 
-    if (options.resourceDelegate != null) {
-      _platform.setResourceDelegate(_playerId, options.resourceDelegate);
+    final VapResourceDelegate? resourceDelegate = options.resourceDelegate;
+    if (resourceDelegate != null) {
+      _platform.setResourceDelegate(
+        _playerId,
+        metadata == null || metadata.slots.isEmpty
+            ? resourceDelegate
+            : _withSlotSizes(resourceDelegate, metadata),
+      );
     }
     _eventSubscription = _platform
         .vapEventsFor(_playerId)
@@ -454,4 +461,26 @@ class VapPlayerController extends ValueNotifier<VapPlayerValue> {
       super.dispose();
     }
   }
+}
+
+/// Wraps [delegate] so each resource it receives carries its slot's size
+/// from the animation's `vapc` config.
+VapResourceDelegate _withSlotSizes(
+  VapResourceDelegate delegate,
+  VapMetadata metadata,
+) {
+  final Future<String?> Function(VapResource)? resolveText =
+      delegate.resolveText;
+  final Future<Uint8List?> Function(VapResource)? resolveImage =
+      delegate.resolveImage;
+  return VapResourceDelegate(
+    resolveText: resolveText == null
+        ? null
+        : (VapResource resource) =>
+              resolveText(metadata.withSlotSize(resource)),
+    resolveImage: resolveImage == null
+        ? null
+        : (VapResource resource) =>
+              resolveImage(metadata.withSlotSize(resource)),
+  );
 }

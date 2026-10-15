@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_vap_player/src/vap_metadata.dart';
+import 'package:vap_player_platform_interface/vap_player_platform_interface.dart';
 
 void main() {
   late Directory tempDir;
@@ -60,6 +61,83 @@ void main() {
 
     expect(metadata!.isMix, true);
     expect(metadata.size, const Size(672, 1504));
+  });
+
+  test('reads the VAPX slots of the vapc config', () async {
+    final String path = writeFile(<int>[
+      ..._ftyp(),
+      ..._vapc(
+        '{"info":{"v":2,"f":246,"w":720,"h":1280,"isVapx":1},"src":['
+        '{"srcId":"0","srcType":"img","srcTag":"user_name","w":177,"h":35},'
+        '{"srcId":1,"srcType":"img","srcTag":"user_logo","w":110,"h":116},'
+        '{"srcId":"2","srcType":"img","srcTag":"broken","w":0,"h":35},'
+        '{"srcType":"img","srcTag":"no_id","w":10,"h":10}]}',
+      ),
+    ]);
+
+    final VapMetadata? metadata = await readVapMetadata(path);
+
+    expect(
+      metadata!.slots.map((VapSlot slot) => (slot.id, slot.tag, slot.width, slot.height)),
+      <(String, String, int, int)>[('0', 'user_name', 177, 35), ('1', 'user_logo', 110, 116)],
+    );
+  });
+
+  group('withSlotSize', () {
+    VapMetadata metadataWith(List<VapSlot> slots) => VapMetadata(
+      size: const Size(720, 1280),
+      videoSize: const Size(1088, 1280),
+      frameCount: 0,
+      fps: 0,
+      isMix: true,
+      hasVapcBox: true,
+      slots: slots,
+    );
+
+    VapResource resource(String id, String tag) =>
+        VapResource(id: id, type: VapResourceType.image, tag: tag);
+
+    test('matches by srcId and tag, as Android reports them', () {
+      final VapMetadata metadata = metadataWith(const <VapSlot>[
+        VapSlot(id: '0', tag: 'name', width: 177, height: 35),
+        VapSlot(id: '1', tag: 'name', width: 300, height: 60),
+      ]);
+
+      final VapResource sized = metadata.withSlotSize(resource('1', 'name'));
+
+      expect((sized.width, sized.height), (300, 60));
+    });
+
+    test('matches by tag alone, as iOS reports it', () {
+      final VapMetadata metadata = metadataWith(const <VapSlot>[
+        VapSlot(id: '0', tag: 'user_name', width: 177, height: 35),
+      ]);
+
+      final VapResource sized = metadata.withSlotSize(resource('user_name', 'user_name'));
+
+      expect((sized.width, sized.height), (177, 35));
+    });
+
+    test('leaves a tag shared by slots of different sizes unsized', () {
+      final VapMetadata metadata = metadataWith(const <VapSlot>[
+        VapSlot(id: '0', tag: 'name', width: 177, height: 35),
+        VapSlot(id: '1', tag: 'name', width: 300, height: 60),
+      ]);
+
+      final VapResource unsized = resource('name', 'name');
+
+      expect(metadata.withSlotSize(unsized), same(unsized));
+    });
+
+    test('leaves an unknown slot unsized', () {
+      final VapMetadata metadata = metadataWith(const <VapSlot>[
+        VapSlot(id: '0', tag: 'user_name', width: 177, height: 35),
+      ]);
+
+      final VapResource unsized = resource('9', 'other');
+
+      expect(metadata.withSlotSize(unsized), same(unsized));
+    });
   });
 
   test('halves the video width of a v1 file with no vapc box', () async {

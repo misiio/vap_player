@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Add optional `width` and `height` to `VapResource`: the slot's size in the
+  animation's own pixels, so a delegate can draw an image that fills the slot
+  undistorted.
 - Clarify that platform renderers fill their assigned box while the app-facing
   player applies the requested scale consistently across view types.
 

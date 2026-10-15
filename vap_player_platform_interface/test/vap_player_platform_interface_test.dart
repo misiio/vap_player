@@ -40,6 +40,24 @@ void main() {
     expect(first, second);
     expect(first.hashCode, second.hashCode);
   });
+
+  test('VAPX resource slot sizes take part in equality', () {
+    const VapResource unsized = VapResource(
+      id: '0',
+      type: VapResourceType.image,
+      tag: 'user_name',
+    );
+
+    final VapResource sized = unsized.withSize(width: 177, height: 35);
+
+    expect(sized.id, '0');
+    expect(sized.type, VapResourceType.image);
+    expect(sized.tag, 'user_name');
+    expect(sized.width, 177);
+    expect(sized.height, 35);
+    expect(sized, isNot(unsized));
+    expect(sized, unsized.withSize(width: 177, height: 35));
+  });
 }
 
 class _TestVapPlayerPlatform extends VapPlayerPlatform {}
