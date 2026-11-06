@@ -154,6 +154,10 @@ class VapPlayerInstance(
     // IAnimListener (called on VAP worker threads)
     // ------------------------------------------------------------------
 
+    fun onParseConfig(config: AnimConfig?): Boolean {
+        return true
+    }
+    
     override fun onVideoConfigReady(config: AnimConfig): Boolean {
         sendConfigReadyOnce(config)
         return true
