@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 2.1.2
+
+- Add a nullable `onParseConfig` method for compatibility with alternate VAP
+  SDKs. The bundled Tencent VAP 2.0.28 SDK does not call this method.
+
 ## 2.1.1
 
 - Fix VAPX playback in texture mode by initializing EGL before the resource

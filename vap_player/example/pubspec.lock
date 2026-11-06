@@ -221,7 +221,7 @@ packages:
       path: "../../vap_player_android"
       relative: true
     source: path
-    version: "2.1.1"
+    version: "2.1.2"
   vap_player_ios:
     dependency: "direct overridden"
     description:
